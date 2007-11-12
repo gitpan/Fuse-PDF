@@ -1,0 +1,113 @@
+#!perl
+
+#######################################################################
+#      $URL$
+#     $Date$
+#   $Author$
+# $Revision$
+########################################################################
+
+## no critic(ErrorHandling::RequireCarping)
+
+package main;
+
+use warnings;
+use strict;
+use Getopt::Long;
+use Pod::Usage;
+use Fuse::PDF;
+
+our $VERSION = '0.01';
+
+my %opts = (
+   verbose    => 0,
+   debug      => 0,
+   askforpass => 0,
+   help       => 0,
+   version    => 0,
+);
+
+Getopt::Long::Configure('bundling');
+GetOptions(
+   'v|verbose' => \$opts{verbose},
+   'd|debug'   => \$opts{debug},
+   'p|pass'    => \$opts{askforpass},
+   'h|help'    => \$opts{help},
+   'V|version' => \$opts{version},
+) or pod2usage(1);
+
+if ($opts{help}) {
+   pod2usage(-exitstatus => 0, -verbose => 2);
+}
+if ($opts{version}) {
+   print "Fuse::PDF v$Fuse::PDF::VERSION\n";
+   exit 0;
+}
+
+if (@ARGV < 2) {
+   pod2usage(1);
+}
+
+my $filename = shift;
+my $mountdir = shift;
+
+my $pdf_opts = [q{}, q{}, { prompt_for_password => $opts{askforpass} }];
+my $fuse = Fuse::PDF->new($filename, { pdf_constructor => $pdf_opts })
+    or die 'Failed to open the PDF';
+
+$fuse->mount($mountdir, { $opts{debug} ? (debug => 1) : () });
+
+1;
+
+__END__
+
+=pod
+
+=head1 NAME
+
+mount_pdf - Enable access to a filesystem embedded in a PDF document
+
+=head1 LICENSE
+
+Copyright 2007 Chris Dolan, I<cdolan@cpan.org>
+
+This library is free software; you can redistribute it and/or modify it
+under the same terms as Perl itself.
+
+=head1 SYNOPSIS
+
+ mount_pdf [options] file.pdf /path/to/mount/point
+
+ Options:
+   -d --debug          turn on FUSE debug messages
+   -p --pass           prompt for a PDF user password if needed
+   -h --help           verbose help message
+   -V --version        print Fuse::PDF version
+
+If you want to read the PDF from STDIN and write it out to STDOUT, you
+can supply C<-> as the PDF filename.
+
+=head1 DESCRIPTION
+
+This is a simple front-end to L<Fuse::PDF> which allows you to mount a
+PDF as a filesystem.  All content in the filesystem is represented as
+a tree in the PDF data structure.
+
+If you employ PDF encryption, all content will be encrypted (including
+file and directory names and extended attributes) but filesystem
+metadata (sizes, timestamps, permissions, tree structure) will not be.
+
+=head1 AUTHOR
+
+Chris Dolan, I<cdolan@cpan.org>
+
+=cut
+
+# Local Variables:
+#   mode: cperl
+#   cperl-indent-level: 3
+#   fill-column: 78
+#   indent-tabs-mode: nil
+#   c-indentation-style: bsd
+# End:
+# ex: set ts=8 sts=4 sw=4 tw=78 ft=perl expandtab :

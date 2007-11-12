@@ -1,0 +1,6 @@
+# History of Perl distribution Fuse-PDF.  This is intended to be valid YAML.
+
+0.01 :
+     - Released: 2007 Nov 12
+     - Summary: initial release
+     - Known bugs: see CAVEATS in Fuse::PDF documentation

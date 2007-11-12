@@ -1,0 +1,13 @@
+bin/mount_pdf
+Build.PL
+Changes
+lib/Fuse/PDF.pm
+lib/Fuse/PDF/FS.pm
+Makefile.PL
+MANIFEST			This list of files
+META.yml
+README
+t/fusepdf.t
+t/lib/Test/Fuse/PDF.pm
+t/pod-coverage.t
+t/pod.t
