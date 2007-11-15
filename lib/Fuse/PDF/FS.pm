@@ -1,9 +1,8 @@
-##no critic(Tidy)
 #######################################################################
 #      $URL: svn+ssh://equilibrious@equilibrious.net/home/equilibrious/svnrepos/chrisdolan/Fuse-PDF/lib/Fuse/PDF/FS.pm $
-#     $Date: 2007-11-12 01:57:00 -0600 (Mon, 12 Nov 2007) $
+#     $Date: 2007-11-15 00:43:02 -0600 (Thu, 15 Nov 2007) $
 #   $Author: equilibrious $
-# $Revision: 694 $
+# $Revision: 702 $
 ########################################################################
 
 package Fuse::PDF::FS;
@@ -11,16 +10,24 @@ package Fuse::PDF::FS;
 use warnings;
 use strict;
 
+use Carp qw(carp);
 use Readonly;
 use POSIX qw(:errno_h);
 use Fcntl qw(:mode);
 use English qw(-no_match_vars);
+use CAM::PDF;
 use CAM::PDF::Node;
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 # integer, increases when we break file format backward compatibility
-Readonly::Scalar my $COMPATIBILITY_VERSION => 1;
+Readonly::Scalar my $COMPATIBILITY_VERSION => 2;
+
+# file format compatibility history:
+# 1 = Fuse::PDF v0.01
+# 2 = Fuse::PDF v0.02-present
+#     add another layer to avoid adding filesystems right in the PDF root dict
+#     add fs timestamp
 
 Readonly::Scalar my $PATHLEN => 255;
 Readonly::Scalar my $BLOCKSIZE => 4096;
@@ -32,6 +39,8 @@ Readonly::Scalar my $FREE_FILES => 1_000_000;
 Readonly::Scalar my $MAX_BLOCKS => 1_000_000;
 Readonly::Scalar my $FREE_BLOCKS => 500_000;
 
+Readonly::Scalar my $FS_ROOT_KEY => 'FusePDF';
+
 # --------------------------------------------------
 
 sub new {
@@ -41,28 +50,37 @@ sub new {
 
    my $self = bless {
       # Order matters!
+      backup => 0,
       compact => 1,
       autosave_filename => undef,
-      fs_name => 'FusePDF_FS',
+      fs_name => undef,
       %{$options},
       dirty => 0,
+      backedup => {},
    }, $pkg;
 
+   if (!defined $self->{fs_name}) {
+      $self->{fs_name} = 'FusePDF_FS';
+   }
+
    # lookup/create fs object in PDF
-   my $root = $options->{pdf}->getRootDict();
+   my $root = $self->{pdf}->getRootDict();
    my ($o, $g) = ($root->{objnum}, $root->{gennum});
 
-   if ($root->{$self->{fs_name}}) {
-      $self->{fs} = $self->{pdf}->getValue($root->{$self->{fs_name}});
+   $root->{FusePDF} ||= CAM::PDF::Node->new('dictionary', {}, $o, $g);
+   my $fs_holder = $root->{$FS_ROOT_KEY}->{value};
+   if ($fs_holder->{$self->{fs_name}}) {
+      $self->{fs} = $self->{pdf}->getValue($fs_holder->{$self->{fs_name}});
    } else {
       my $fs = CAM::PDF::Node->new('object', CAM::PDF::Node->new('dictionary', {
          nfiles => CAM::PDF::Node->new('number', 1),
          maxinode => CAM::PDF::Node->new('number', 0),
          root => $self->_newdir($root, $ROOT_FS_PERMS),
+         mtime => CAM::PDF::Node->new('number', time),
       }));
       # Don't bother marking the FS dirty unless we actually put something in it
-      my $objnum = $self->{pdf}->appendObject(undef, $fs, 1);
-      $root->{$self->{fs_name}} = CAM::PDF::Node->new('reference', $objnum);
+      my $objnum = $self->{pdf}->appendObject(undef, $fs, 0); # 0 means no-follow, so the newdir MUST be a single object
+      $fs_holder->{$self->{fs_name}} = CAM::PDF::Node->new('reference', $objnum, $o, $g);
       $self->{fs} = $fs->{value}->{value};
    }
 
@@ -77,10 +95,28 @@ sub DESTROY {
    return;
 }
 
+sub deletefs {
+   my ($self, $filename) = @_;
+   my $root = $self->{pdf}->getRootDict();
+   if ($root->{$FS_ROOT_KEY}) {
+      delete $root->{$FS_ROOT_KEY}->{value}->{$self->{fs_name}};
+      $self->{pdf}->cleanse();
+      $self->{pdf}->cleanoutput($filename);
+   }
+   return;
+}
+
 sub compact { ## no critic(ArgUnpacking)
    my ($self, $boolean) = @_;
    return $self->{compact} if @_ == 1;
    $self->{compact} = $boolean ? 1 : undef;
+   return;
+}
+
+sub backup { ## no critic(ArgUnpacking)
+   my ($self, $boolean) = @_;
+   return $self->{backup} if @_ == 1;
+   $self->{backup} = $boolean ? 1 : undef;
    return;
 }
 
@@ -108,10 +144,77 @@ sub save {
          $self->{pdf}->cleanse();
          $self->{pdf}->clean();
       }
+      if ($self->{backup} && -e $filename && !$self->{backedup}->{$filename}) {
+         my $backup_filename = $filename . '.bak';
+         unlink $backup_filename; # ignore failure
+         rename $filename, $backup_filename or carp 'Failed to make a backup of the filesystem: ' . $OS_ERROR;
+         $self->{backedup}->{$filename} = 1;
+      }
       $self->{pdf}->output($filename);
       $self->{dirty} = 0;
    }
    return;
+}
+
+sub previous_revision {
+   my ($self) = @_;
+
+   my $content = \$self->{pdf}->{content};
+   return if !${$content};  # already wiped...
+
+   # Figure out line end character                                              
+   my ($lineend) = ${$content} =~ m/ (.)%%EOF.*?\z /xms;
+   return if !$lineend; # Corrupt PDF: Cannot find the end-of-file marker
+
+   my $eof = $lineend.'%%EOF';
+   my $i = rindex ${$content}, $eof;
+   my $j = rindex ${$content}, $eof, $i-1;
+   return if $j < 0; # just one revision
+
+   my $prev_content = (substr ${$content}, 0, $j) . $eof . $lineend;
+   # assume the passwords were the same in the previous rev
+   my ($opass, $upass, @perms) = $self->{pdf}->getPrefs;
+
+   return __PACKAGE__->new({
+      pdf => CAM::PDF->new($prev_content, $opass, $upass),
+      fs_name => $self->{fs_name},
+   });
+}
+
+sub all_revisions {
+   my ($self) = @_;
+   my @revs;
+   for (my $fs = $self; $fs; $fs = $fs->previous_revision) {  ## no critic(ProhibitCStyleForLoops)
+      push @revs, $fs;
+   }
+   return @revs;
+}
+
+sub statistics {
+   my ($self) = @_;
+   my %stats;
+   $stats{name} = $self->{fs_name};
+   $stats{nfiles} = $self->{fs}->{nfiles}->{value};
+   $stats{mtime} = $self->{fs}->{mtime}->{value};
+   return \%stats;
+}
+
+sub to_string {
+   my ($self) = @_;
+   my @stats = ($self->statistics);
+   my $fs = $self;
+   while ($fs = $fs->previous_revision) {
+      push @stats, $fs->statistics;
+   }
+   my @rows = (   'Name:       ' . $stats[0]->{name} );
+   for my $i (0 .. $#stats) {
+      my $s = $stats[$i];
+      push @rows, 'Revision:   ' . (@stats - $i);
+      push @rows, '  Modified: ' . localtime($s->{mtime}) . " ($s->{mtime})";
+      push @rows, '  Files:    ' . $s->{nfiles};
+   }
+
+   return join "\n", @rows, q{};
 }
 
 # --------------------------------------------------
@@ -168,11 +271,14 @@ sub fs_mknod {
    my $is_special = !S_ISREG($perms) && !S_ISDIR($perms) && !S_ISLNK($perms);
    return -EIO() if $is_special;
 
-   $p->{content}->{value}->{$name} = $self->_newfile($p, $perms);
-   $p->{content}->{value}->{$name}->{value}->{inode}->{value} = ++$self->{fs}->{maxinode}->{value};
+   my $newfile = $self->_newfile($p, $perms);
+   my $mtime = $newfile->{value}->{mtime}->{value};
+   $newfile->{value}->{inode}->{value} = ++$self->{fs}->{maxinode}->{value};
+   $p->{content}->{value}->{$name} = $newfile;
    #$p->{nlink}->{value}++;
-   $p->{mtime}->{value} = time;
+   $p->{mtime}->{value} = $mtime;
    $self->{fs}->{nfiles}->{value}++;
+   $self->{fs}->{mtime}->{value} = $mtime;
    $self->{dirty} = 1;
    return 0;
 }
@@ -185,11 +291,14 @@ sub fs_mkdir {
    return -EEXIST() if q{..} eq $name;
    my $f = $p->{content}->{value}->{$name};
    return -EEXIST() if $f;
-   $p->{content}->{value}->{$name} = $self->_newdir($p, $perm);
-   $p->{content}->{value}->{$name}->{value}->{inode}->{value} = ++$self->{fs}->{maxinode}->{value};
+   my $newdir = $self->_newdir($p, $perm);
+   my $mtime = $newdir->{value}->{mtime}->{value};
+   $newdir->{value}->{inode}->{value} = ++$self->{fs}->{maxinode}->{value};
+   $p->{content}->{value}->{$name} = $newdir;
    $p->{nlink}->{value}++;
-   $p->{mtime}->{value} = time;
+   $p->{mtime}->{value} = $mtime;
    $self->{fs}->{nfiles}->{value}++;
+   $self->{fs}->{mtime}->{value} = $mtime;
    $self->{dirty} = 1;
    return 0;
 }
@@ -198,7 +307,7 @@ sub fs_unlink {
    my ($self, $abspath) = @_;
    my ($p, $name) = $self->_parent($abspath);
    return -$p if !ref $p;
-   use Data::Dumper; print STDERR "$name vs. ".Dumper($p);
+   #use Data::Dumper; print STDERR "$name vs. ".Dumper($p);
    my $f = $p->{content}->{value}->{$name};
    return -ENOENT() if !ref $f;
    $f = $f->{value};
@@ -209,7 +318,9 @@ sub fs_unlink {
 
    delete $p->{content}->{value}->{$name};
    #$p->{nlink}->{value}--;
-   $p->{mtime}->{value} = time;
+   my $mtime = time;
+   $p->{mtime}->{value} = $mtime;
+   $self->{fs}->{mtime}->{value} = $mtime;
    $self->{dirty} = 1;
    return 0;
 }
@@ -226,7 +337,9 @@ sub fs_rmdir {
    return -ENOTEMPTY() if 0 != scalar keys %{ $f->{content}->{value} };
    delete $p->{content}->{value}->{$name};
    $p->{nlink}->{value}--;
-   $p->{mtime}->{value} = time;
+   my $mtime = time;
+   $p->{mtime}->{value} = $mtime;
+   $self->{fs}->{mtime}->{value} = $mtime;
    $self->{dirty} = 1;
    return 0;
 }
@@ -241,7 +354,9 @@ sub fs_symlink {
    return -EEXIST() if $f;
    $p->{content}->{value}->{$name} = $self->_newsymlink($p, $link);
    #$p->{nlink}->{value}++;
-   $p->{mtime}->{value} = time;
+   my $mtime = time;
+   $p->{mtime}->{value} = $mtime;
+   $self->{fs}->{mtime}->{value} = $mtime;
    $self->{fs}->{nfiles}->{value}++;
    $self->{dirty} = 1;
    return 0;
@@ -260,6 +375,7 @@ sub fs_chmod {
    my $f = $self->_file($abspath);
    return -$f if !ref $f;
    $f->{mode}->{value} = $perms;
+   $self->{fs}->{mtime}->{value} = time;
    $self->{dirty} = 1;
    return 0;
 }
@@ -290,7 +406,9 @@ sub fs_truncate {
          $f->{content}->{value} .= "\0" x ($length - $l);
       }
    }
-   $f->{mtime}->{value} = time;
+   my $mtime = time;
+   $f->{mtime}->{value} = $mtime;
+   $self->{fs}->{mtime}->{value} = $mtime;
    $self->{dirty} = 1;
    return 0;
 }
@@ -303,8 +421,9 @@ sub fs_utime {
    # Ignore atime
 
    # Set utime, if changed
-   if ($f->{utime}->{value} != $utime) {
-      $f->{utime}->{value} = $utime;
+   if ($f->{mtime}->{value} != $utime) {
+      $f->{mtime}->{value} = $utime;
+      $self->{fs}->{mtime}->{value} = time;
       $self->{dirty} = 1;
    }
    return 0;
@@ -331,7 +450,9 @@ sub fs_write {
    return -$f if !ref $f;
    my $size = length $str;
    substr($f->{content}->{value}, $offset, $size) = $str;    ##no critic(ProhibitLvalueSubstr)
-   $f->{mtime}->{value} = time;
+   my $mtime = time;
+   $f->{mtime}->{value} = $mtime;
+   $self->{fs}->{mtime}->{value} = $mtime;
    $self->{dirty} = 1;
    return $size;
 }
@@ -374,6 +495,7 @@ sub fs_setxattr {
       return -ENOATTR() if !exists $xattr->{value}->{$key};
    }
    $xattr->{value}->{$key} = CAM::PDF::Node->new('string', $value, $o, $g);
+   $self->{fs}->{mtime}->{value} = time;
    $self->{dirty} = 1;
    return 0;
 }
@@ -404,6 +526,7 @@ sub fs_removexattr {
    return -ENOATTR() if !$xattr;
    return -ENOATTR() if !exists $xattr->{value}->{$key};
    delete $xattr->{value}->{$key};
+   $self->{fs}->{mtime}->{value} = time;
    $self->{dirty} = 1;
    return 0;
 }
@@ -478,6 +601,7 @@ sub _newsymlink {
 
 sub _newdir {
    my ($self, $parent, $perm) = @_;
+   # MUST NOT create an new PDF objects
    my ($o, $g) = ($parent->{objnum}, $parent->{gennum});
    my $dir = $self->_newentry($o, $g, S_IFDIR() | $perm,
       'd', CAM::PDF::Node->new('dictionary', {}, $o, $g));
@@ -487,6 +611,7 @@ sub _newdir {
 
 sub _newentry {    ##no critic(ProhibitManyArgs)
    my ($self, $o, $g, $perm, $type, $content) = @_;
+   # MUST NOT create an new PDF objects if type = 'd'
    my $now = time;
    return CAM::PDF::Node->new('dictionary', {
       content => $content,
@@ -556,20 +681,6 @@ the architecture of CAM::PDF, so swapping in another PDF
 implementation is not likely to be feasible with substantial rewriting
 or bridging.
 
-=item compact => $boolean
-
-Specifies whether the PDF should be compacted upon save.  Defaults to
-true.  If this option is turned off, then previous revisions of the
-filesystem can be retrieved via standard PDF revert tools, like
-F<revertpdf.pl> from the L<CAM::PDF> distribution.  But that can lead
-to rather large PDFs.
-
-=item autosave_filename => undef | $filename
-
-If this option is set to a filename, the PDF will be automatically
-saved when this instance is garbage collected.  Otherwise, the client
-must explicitly call C<save()>.  Defaults to C<undef>.
-
 =item fs_name => $name
 
 This specifies the key where the filesystem data is stored inside the
@@ -578,13 +689,26 @@ possible to have multiple independent filesystems embedded in the same
 PDF at once by choosing another name.  However, mounting more than one
 at a time will almost certainly cause data loss.
 
+=item autosave_filename => undef | $filename
+
+If this option is set to a filename, the PDF will be automatically
+saved when this instance is garbage collected.  Otherwise, the client
+must explicitly call C<save()>.  Defaults to C<undef>.
+
+=item compact => $boolean
+
+Specifies whether the PDF should be compacted upon save.  Defaults to
+true.  If this option is turned off, then previous revisions of the
+filesystem can be retrieved via standard PDF revert tools, like
+F<revertpdf.pl> from the L<CAM::PDF> distribution.  But that can lead
+to rather large PDFs.
+
+=item backup => $boolean
+
+Specifies whether to save the previous version of the PDF as
+F<$filename.bak> before saving a new version.  Defaults to false.
+
 =back
-
-=item $self->save($filename);
-
-Explicitly trigger a save to the specified filename.  If
-C<autosave_filename> is defined, then this method is called via
-C<DESTROY()>.
 
 =item $self->autosave_filename()
 
@@ -597,6 +721,53 @@ Accessor/mutator for the C<autosave_filename> property described above.
 =item $self->compact($boolean)
 
 Accessor/mutator for the C<compact> property described above.
+
+=item $self->backup()
+
+=item $self->backup($boolean)
+
+Accessor/mutator for the C<backup> property described above.
+
+=item $self->save($filename);
+
+Explicitly trigger a save to the specified filename.  If
+C<autosave_filename> is defined, then this method is called via
+C<DESTROY()>.
+
+=item $self->deletefs($filename)
+
+Delete the filesystem from the in-memory PDF and save the result to
+the specified filename.  If there is more than one filesystem in the
+PDF, only the one indicated by the C<fs_name> above is affected.  If
+no filesystem exists with that C<fs_name>, the save succeeds anyway.
+
+=item $self->all_revisions()
+
+Return a list of one instance for each revision of the PDF.  The first
+item on the list is this instance (the newest) and the last item on
+the list is the first revision of the PDF (the oldest).
+
+=item $self->previous_revision()
+
+If there is an older version of the PDF, extract that and return a new
+C<Fuse::PDF::FS> instance which applies to that revision.  Multiple
+versions is feature supported by the PDF specification, so this action
+is consistent with other PDF revision editing tools.
+
+If this is a new filesystem or if the C<compact()> option was used,
+then there will be no previous revisions and this will return
+C<undef>.
+
+=item $self->statistics()
+
+Return a hashref with some global information about the filesystem.
+This is currently meant for humans and the exact list of statistics is
+not yet locked down.  See the code for more details.
+
+=item $self->to_string()
+
+Return a human-readable representation of the statistics for each
+revision of the filesystem.
 
 =back
 

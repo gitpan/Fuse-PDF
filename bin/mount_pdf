@@ -17,23 +17,37 @@ use Getopt::Long;
 use Pod::Usage;
 use Fuse::PDF;
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 my %opts = (
    verbose    => 0,
    debug      => 0,
    askforpass => 0,
+   info       => 0,
+   delete     => 0,
+   backup     => 0,
+   rev        => 0,
+   keep       => 0,
+   fs_name    => undef,
+   fuseopts   => undef,
    help       => 0,
    version    => 0,
 );
 
 Getopt::Long::Configure('bundling');
 GetOptions(
-   'v|verbose' => \$opts{verbose},
-   'd|debug'   => \$opts{debug},
-   'p|pass'    => \$opts{askforpass},
-   'h|help'    => \$opts{help},
-   'V|version' => \$opts{version},
+   'v|verbose'    => \$opts{verbose},
+   'd|debug'      => \$opts{debug},
+   'p|password'   => \$opts{askforpass},
+   'i|info'       => \$opts{info},
+   'deletefs'     => \$opts{delete},
+   'b|backup'     => \$opts{backup},
+   'r|revision=i' => \$opts{rev},
+   'k|keep'       => \$opts{keep},
+   'f|fs=s'       => \$opts{fs_name},
+   'fuseopts=s'   => \$opts{fuseopts},
+   'h|help'       => \$opts{help},
+   'V|version'    => \$opts{version},
 ) or pod2usage(1);
 
 if ($opts{help}) {
@@ -44,7 +58,10 @@ if ($opts{version}) {
    exit 0;
 }
 
-if (@ARGV < 2) {
+if (@ARGV < 1) {
+   pod2usage(1);
+}
+if (@ARGV < 2 && !$opts{info} && !$opts{delete}) {
    pod2usage(1);
 }
 
@@ -52,12 +69,26 @@ my $filename = shift;
 my $mountdir = shift;
 
 my $pdf_opts = [q{}, q{}, { prompt_for_password => $opts{askforpass} }];
-my $fuse = Fuse::PDF->new($filename, { pdf_constructor => $pdf_opts })
-    or die 'Failed to open the PDF';
+my $fuse = Fuse::PDF->new($filename, {
+   pdf_constructor => $pdf_opts,
+   fs_name         => $opts{fs_name},
+   revision        => $opts{rev},
+   backup          => $opts{backup},
+   compact         => !$opts{keep},
+}) or die 'Failed to open the PDF';
 
-$fuse->mount($mountdir, { $opts{debug} ? (debug => 1) : () });
+if ($opts{info}) {
+   print $fuse->fs->to_string;
+} elsif ($opts{delete}) {
+   $fuse->fs->deletefs($filename);
+} else {
+   $fuse->mount($mountdir, {
+       $opts{debug}    ? ( debug => 1 )                   : (),
+       $opts{fuseopts} ? ( mountopts => $opts{fuseopts} ) : (),
+    });
+}
 
-1;
+exit 0;
 
 __END__
 
@@ -76,16 +107,35 @@ under the same terms as Perl itself.
 
 =head1 SYNOPSIS
 
- mount_pdf [options] file.pdf /path/to/mount/point
+ mount_pdf file.pdf /path/to/mount/point
+ mount_pdf --deletefs file.pdf
+ mount_pdf -i file.pdf
+ mount_pdf -h
+ mount_pdf -V
 
  Options:
    -d --debug          turn on FUSE debug messages
-   -p --pass           prompt for a PDF user password if needed
-   -h --help           verbose help message
-   -V --version        print Fuse::PDF version
+   -p --password       prompt for a PDF user password, if needed
+   -r --revision=num   roll back to particular revision before mounting (see below)
+   -k --keep           keep old versions of the filesystem in the PDF
+   -b --backup         move the original PDF to ".bak" just before the first write
+   -f --fs=name        which embedded filesystem to use
+      --fuseopts=opts  comma-separated list of options to pass directly to Fuse
+                       Only used when actually mounting.  See 'mountopts' in Fuse.pm.
+
+ Other flags:
+      --deletefs       remove the filesystem from the PDF (implies compact)
+   -i --info           print filesystem details and quit
+   -h --help           print verbose help message and quit
+   -V --version        print the Fuse::PDF version and quit
 
 If you want to read the PDF from STDIN and write it out to STDOUT, you
 can supply C<-> as the PDF filename.
+
+To see the choices for the C<-r> flag, try C<-i> first.  Note that if
+you roll back, there's no way to undo that choice, so make a backup
+copy of your PDF before starting!  Unless you specified the C<-K>
+option earlier, there will be no revisions to go back to.
 
 =head1 DESCRIPTION
 
@@ -96,6 +146,7 @@ a tree in the PDF data structure.
 If you employ PDF encryption, all content will be encrypted (including
 file and directory names and extended attributes) but filesystem
 metadata (sizes, timestamps, permissions, tree structure) will not be.
+See the F<rewritepdf.pl> utility in the L<CAM::PDF> distribution.
 
 =head1 AUTHOR
 

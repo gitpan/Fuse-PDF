@@ -1,8 +1,8 @@
 #######################################################################
 #      $URL: svn+ssh://equilibrious@equilibrious.net/home/equilibrious/svnrepos/chrisdolan/Fuse-PDF/lib/Fuse/PDF.pm $
-#     $Date: 2007-11-12 01:57:00 -0600 (Mon, 12 Nov 2007) $
+#     $Date: 2007-11-15 00:43:02 -0600 (Thu, 15 Nov 2007) $
 #   $Author: equilibrious $
-# $Revision: 694 $
+# $Revision: 702 $
 ########################################################################
 
 package Fuse::PDF;
@@ -15,7 +15,7 @@ use Fuse qw(:xattr);
 use CAM::PDF;
 use Fuse::PDF::FS;
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 sub new {
    my ($pkg, $filename, $extra) = @_;
@@ -26,20 +26,42 @@ sub new {
    return if !$pdf;
    my $self = bless {
       save_filename => $filename,
+      compact       => 0,
+      fs_name       => undef,
       %{$extra},
       pdf => $pdf,
    }, $pkg;
    return $self;
 }
 
+sub fs {
+   my ($self) = @_;
+
+   my $fs = Fuse::PDF::FS->new({
+      pdf => $self->{pdf},
+      fs_name => $self->{fs_name},
+   }) or croak 'Failed to open the PDF or create a filesystem inside';
+
+   if ($self->{revision}) {
+      my @revisions = $fs->all_revisions;
+      if ($self->{revision} =~ m/\D/xms && $self->{revision} <= @revisions) {
+         $fs = $revisions[@revisions - $self->{revision}];
+      } else {
+         croak 'Invalid filesystem revision: ' . $self->{revision};
+      }
+   }
+
+   return $fs;
+}
+
 sub mount {
    my ($self, $mountdir, $options) = @_;
    $options ||= {};
 
-   my $fs = Fuse::PDF::FS->new({ pdf => $self->{pdf} })
-       or croak 'Failed to open the PDF or create a filesystem inside';
-
+   my $fs = $self->fs;
    $fs->autosave_filename($self->{save_filename});
+   $fs->compact($self->{compact});
+   $fs->backup($self->{backup});
 
    # perform mount
    if (!-d $mountdir) {
@@ -207,6 +229,9 @@ Hopefully I can fix this in future releases.  The saving is not yet
 atomic.  That is, if you have a failure, the old PDF may be
 deleted before the new one is saved.
 
+B<Resources:> The B<entire> PDF is loaded into RAM in C<new()>.  If
+your filesystem grows too large, this will lead to obvious problems!
+
 B<Tests:> There are no automated tests yet.  That's next, I promise!
 
 B<Hangs:> While FUSE is quite mature, I found it to be fairly easy to hang the
@@ -273,8 +298,30 @@ which can be used to open encrypted PDFs.
 
 =item save_filename
 
-The file where filesystem changes should be saved.  By default this is
-the C<$pdf_filename> passed to C<new()>.
+The string representing the path where filesystem changes should be
+saved.  By default this is the C<$pdf_filename> passed to C<new()>.
+
+=item compact
+
+A boolean indicating whether to discard old filesystem data saved via
+version infrastructure described in the PDF specification.
+Defaults to false.  If left false, then the PDF will grow with every
+mount, but only by as much as you changed it.  See C<rewritepdf.pl
+--cleanse> from the L<CAM::PDF> distribution to perform the compaction
+manually.  See also C<revertpdf.pl> to roll back to those older
+versions.
+
+=item fs_name
+
+Fuse::PDF can embed multiple filesystems in a single PDF distinguished
+by name.  This string specifies which filesystem to use.  It uses the
+Fuse::PDF::FS default if a name is not explicitly provided.
+
+=item revision
+
+A version number indicating which filesystem version to roll back to
+before mounting.  Use C<fs()> and the L<Fuse::PDF::FS> API to learn
+what revisions are available in a PDF filesystem.
 
 =back
 
@@ -315,6 +362,12 @@ The options hash is passed directly to C<Fuse::main()>.  See the
 L<Fuse> documentation for the allowed keys.  A simple example is:
 
     $fs->mount($mountdir, {debug => 1});
+
+=item $self->fs()
+
+Return a fresh copy of the L<Fuse::PDF::FS> data structure representing this
+PDF.  You should not try to manipulate this object while the filesystem is
+mounted.  This module is not yet thread-safe!
 
 =back
 

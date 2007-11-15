@@ -9,7 +9,8 @@ WriteMakefile
                            'Fuse' => '0.08',
                            'Readonly' => '0',
                            'Test::Class' => '0',
-                           'Test::More' => '0.62'
+                           'Test::More' => '0.62',
+                           'Test::Virtual::Filesystem' => '0'
                          },
           'INSTALLDIRS' => 'site',
           'EXE_FILES' => [

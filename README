@@ -33,6 +33,9 @@ BUGS AND CAVEATS
     if you have a failure, the old PDF may be deleted before the new one is
     saved.
 
+    Resources: The entire PDF is loaded into RAM in `new()'. If your
+    filesystem grows too large, this will lead to obvious problems!
+
     Tests: There are no automated tests yet. That's next, I promise!
 
     Hangs: While FUSE is quite mature, I found it to be fairly easy to hang
@@ -91,8 +94,29 @@ METHODS
             and user password which can be used to open encrypted PDFs.
 
         save_filename
-            The file where filesystem changes should be saved. By default
-            this is the `$pdf_filename' passed to `new()'.
+            The string representing the path where filesystem changes should
+            be saved. By default this is the `$pdf_filename' passed to
+            `new()'.
+
+        compact
+            A boolean indicating whether to discard old filesystem data
+            saved via version infrastructure described in the PDF
+            specification. Defaults to false. If left false, then the PDF
+            will grow with every mount, but only by as much as you changed
+            it. See `rewritepdf.pl --cleanse' from the CAM::PDF distribution
+            to perform the compaction manually. See also `revertpdf.pl' to
+            roll back to those older versions.
+
+        fs_name
+            Fuse::PDF can embed multiple filesystems in a single PDF
+            distinguished by name. This string specifies which filesystem to
+            use. It uses the Fuse::PDF::FS default if a name is not
+            explicitly provided.
+
+        revision
+            A version number indicating which filesystem version to roll
+            back to before mounting. Use `fs()' and the Fuse::PDF::FS API to
+            learn what revisions are available in a PDF filesystem.
 
     $self->mount($mount_path)
     $self->mount($mount_path, $hash_of_fuse_options)
@@ -130,6 +154,11 @@ METHODS
         documentation for the allowed keys. A simple example is:
 
             $fs->mount($mountdir, {debug => 1});
+
+    $self->fs()
+        Return a fresh copy of the Fuse::PDF::FS data structure representing
+        this PDF. You should not try to manipulate this object while the
+        filesystem is mounted. This module is not yet thread-safe!
 
 SEE ALSO
     CAM::PDF

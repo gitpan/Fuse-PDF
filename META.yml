@@ -1,6 +1,6 @@
 ---
 name: Fuse-PDF
-version: 0.01
+version: 0.02
 author:
   - 'Chris Dolan <cdolan@cpan.org>'
 abstract: Filesystem embedded in a PDF document
@@ -11,10 +11,11 @@ requires:
   CAM::PDF: 1.00
   Fuse: 0.08
   Readonly: 0
-  perl: 5.6.0
+  perl: 5.8.0
 build_requires:
   Test::Class: 0
   Test::More: 0.62
+  Test::Virtual::Filesystem: 0
 recommends:
   Getopt::Long: 2.0
   Pod::Usage: 1.0
@@ -24,10 +25,10 @@ recommends:
 provides:
   Fuse::PDF:
     file: lib/Fuse/PDF.pm
-    version: 0.01
+    version: 0.02
   Fuse::PDF::FS:
     file: lib/Fuse/PDF/FS.pm
-    version: 0.01
+    version: 0.02
 generated_by: Module::Build version 0.2808
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.2.html

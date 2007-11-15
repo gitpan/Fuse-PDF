@@ -11,3 +11,4 @@ t/fusepdf.t
 t/lib/Test/Fuse/PDF.pm
 t/pod-coverage.t
 t/pod.t
+t/test.pdf

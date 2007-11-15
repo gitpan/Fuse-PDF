@@ -1,6 +1,23 @@
-# History of Perl distribution Fuse-PDF.  This is intended to be valid YAML.
+# History of Perl distribution Fuse-PDF.  This change log is valid YAML.
+
+0.02 :
+     - Released: 2007 Nov 15
+     - Summary: End-user features; convert to Test::Virtual::Filesystem
+
+     - Feature: delete an fs (mount_pdf --deletefs)
+     - Feature: backup on save (mount_pdf -b)
+     - Feature: show statistics (mount_pdf -i)
+     - Feature: access older revisions (mount_pdf -r -k)
+     - Feature: support multiple filesystems in a PDF (mount_pdf -f <name>)
+     - Feature: pass options to FUSE (mount_pdf --fuseopts <opts>)
+
+     - New prerequisite: Test::Virtual::Filesystem
+
+     - Incompatibility: Increased file format number to 2
+     - Incompatibility: Changed "mount_pdf --pass" to "mount_pdf --password"
 
 0.01 :
      - Released: 2007 Nov 12
      - Summary: initial release
+
      - Known bugs: see CAVEATS in Fuse::PDF documentation
