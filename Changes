@@ -1,5 +1,19 @@
 # History of Perl distribution Fuse-PDF.  This change log is valid YAML.
 
+0.03 :
+     - Released: 2007 Nov 16
+     - Summary: xattr bug fixes
+
+     - Fix: listxattr was broken - omitted errno
+     - Fix: getxattr was broken - returned node instead of string
+     - Workaround: Fuse.pm has the wrong XATTR_CREATE/REPLACE constants for Mac [rt.cpan.org #30790]
+     - Workaround: POSIX.pm lacks ENOATTR (on Mac 10.4 at least)
+
+     - Prerequisites: Test::Virtual::Filesystem v0.03
+
+     - Testing: turned on Test::Virtual::Filesystem xattr tests
+     - Testing: turned off several other Test::Virtual::Filesystem tests pre-emptively
+
 0.02 :
      - Released: 2007 Nov 15
      - Summary: End-user features; convert to Test::Virtual::Filesystem
@@ -11,7 +25,7 @@
      - Feature: support multiple filesystems in a PDF (mount_pdf -f <name>)
      - Feature: pass options to FUSE (mount_pdf --fuseopts <opts>)
 
-     - New prerequisite: Test::Virtual::Filesystem
+     - Prerequisites: Test::Virtual::Filesystem v0.02
 
      - Incompatibility: Increased file format number to 2
      - Incompatibility: Changed "mount_pdf --pass" to "mount_pdf --password"
@@ -20,4 +34,6 @@
      - Released: 2007 Nov 12
      - Summary: initial release
 
-     - Known bugs: see CAVEATS in Fuse::PDF documentation
+     - Caveats: see CAVEATS in Fuse::PDF documentation
+
+     - Press: http://use.perl.org/article.pl?sid=07/11/15/223246

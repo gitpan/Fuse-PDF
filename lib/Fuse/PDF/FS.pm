@@ -1,8 +1,8 @@
 #######################################################################
 #      $URL: svn+ssh://equilibrious@equilibrious.net/home/equilibrious/svnrepos/chrisdolan/Fuse-PDF/lib/Fuse/PDF/FS.pm $
-#     $Date: 2007-11-15 00:43:02 -0600 (Thu, 15 Nov 2007) $
+#     $Date: 2007-11-16 23:16:28 -0600 (Fri, 16 Nov 2007) $
 #   $Author: equilibrious $
-# $Revision: 702 $
+# $Revision: 706 $
 ########################################################################
 
 package Fuse::PDF::FS;
@@ -18,7 +18,27 @@ use English qw(-no_match_vars);
 use CAM::PDF;
 use CAM::PDF::Node;
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
+
+BEGIN {
+   # ENOATTR isn't commonly defined in POSIX.pm.  Try to find it, or use a fallback value.
+   if (!defined *ENOATTR{CODE}) {
+      if (open my $fh, '<', '/usr/include/sys/errno.h') {
+         my $content = do { local $/ = undef; <$fh> };
+         close $fh;
+         if ($content =~ m/\#define \s+ ENOATTR \s+ (0x\d+|\d+)/xms) {
+            my $errno = $1;
+            if ($errno =~ m/0x(\d+)/xms) {
+               $errno = hex $1;
+            }
+            *ENOATTR = sub { return $errno; };
+         }
+      }
+      if (!defined *ENOATTR{CODE}) {
+         *ENOATTR = sub { return EIO(); };
+      }
+   }
+}
 
 # integer, increases when we break file format backward compatibility
 Readonly::Scalar my $COMPATIBILITY_VERSION => 2;
@@ -206,7 +226,9 @@ sub to_string {
    while ($fs = $fs->previous_revision) {
       push @stats, $fs->statistics;
    }
-   my @rows = (   'Name:       ' . $stats[0]->{name} );
+   my @rows = (
+      'Name:       ' . $stats[0]->{name},
+   );
    for my $i (0 .. $#stats) {
       my $s = $stats[$i];
       push @rows, 'Revision:   ' . (@stats - $i);
@@ -482,10 +504,13 @@ sub fs_fsync {
 
 sub fs_setxattr {
    my ($self, $abspath, $key, $value, $flags) = @_;
+   if (!$flags->{create} && !$flags->{replace}) {
+      return -EIO();
+   }
    my $f = $self->_file($abspath);
    return -$f if !ref $f;
-   my $xattr = $f->{xattr};
    my ($o, $g) = ($f->{type}->{objnum}, $f->{type}->{gennum});
+   my $xattr = $f->{xattr};
    if (!$xattr) {
       $xattr = $f->{xattr} = CAM::PDF::Node->new('dictionary', {}, $o, $g);
    }
@@ -507,7 +532,7 @@ sub fs_getxattr {
    my $xattr = $f->{xattr};
    return 0 if !$xattr;
    return 0 if !exists $xattr->{value}->{$key};
-   return $xattr->{value}->{$key};
+   return $xattr->{value}->{$key}->{value};
 }
 
 sub fs_listxattr {
@@ -515,7 +540,7 @@ sub fs_listxattr {
    my $f = $self->_file($abspath);
    return -$f if !ref $f;
    my $xattr = $f->{xattr};
-   return $xattr ? keys %{ $xattr->{value} } : ();
+   return ($xattr ? keys %{ $xattr->{value} } : ()), 0;
 }
 
 sub fs_removexattr {
@@ -831,6 +856,18 @@ they can easily be converted to a FUSE implementation.
 
 =back
 
+=head1 HACKS
+
+=over
+
+=item ENOATTR()
+
+L<POSIX> is missing a constant this error number (at least, not on Mac
+10.4). If we detect that it is missing at runtime, we attempt to replace it
+by: 1) reading errno.h, 2) falling back to EIO.
+
+=back
+
 =head1 SEE ALSO
 
 L<Fuse::PDF>
@@ -844,7 +881,8 @@ Chris Dolan, I<cdolan@cpan.org>
 =cut
 
 # Local Variables:
-#   mode: cperl
+#   mode: perl
+#   perl-indent-level: 3
 #   cperl-indent-level: 3
 #   fill-column: 78
 #   indent-tabs-mode: nil

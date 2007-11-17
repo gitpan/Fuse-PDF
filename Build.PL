@@ -5,25 +5,26 @@ Module::Build->new(
    dist_author => 'Chris Dolan <cdolan@cpan.org>',
    license => 'perl',
    requires => {
-      'perl' => '5.8.0',
-      'Fuse' => '0.08',
-      'CAM::PDF' => '1.00',
-      'Readonly' => 0,
+      'perl' => '5.8.0',    # authored against 5.8.6
+      'Fuse' => '0.08',     # prefer 0.09 and beyond
+      'CAM::PDF' => '1.00', # authored against 1.10
+      'Readonly' => '1.00', # authored against 1.03
    },
    recommends => {
       # Needed for mount_pdf program
-      'Getopt::Long' => '2.0',    
-      'Pod::Usage' => '1.0',
+      'Getopt::Long' => '2.0',         # authored against 2.37    
+      'Pod::Usage' => '1.0',           # authored against 1.35
 
       # Optional in tests, skipped if not present
-      'Test::Pod' => 0,
-      'Test::Pod::Coverage' => 0,
+      'Test::Pod' => 0,                # authored against 1.26
+      'Test::Pod::Coverage' => 0,      # authored against 1.08
       'Test::Memory::Cycle' => '1.02',
    },
    build_requires => {
-      'Test::More' => 0.62,  # needs to be v0.62 for Test::Memory::Cycle v1.02
-      'Test::Class' => 0,
-      'Test::Virtual::Filesystem' => 0,
+      # needs to be v0.62 for Test::Memory::Cycle v1.02
+      'Test::More' => 0.62,                   # authored against 0.72
+      'Test::Class' => 0,                     # authored against 0.24
+      'Test::Virtual::Filesystem' => '0.03',  # authored against this version
    },
    script_files => [qw(
       bin/mount_pdf

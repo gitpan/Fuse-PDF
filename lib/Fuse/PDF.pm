@@ -1,8 +1,8 @@
 #######################################################################
 #      $URL: svn+ssh://equilibrious@equilibrious.net/home/equilibrious/svnrepos/chrisdolan/Fuse-PDF/lib/Fuse/PDF.pm $
-#     $Date: 2007-11-15 00:43:02 -0600 (Thu, 15 Nov 2007) $
+#     $Date: 2007-11-16 23:16:28 -0600 (Fri, 16 Nov 2007) $
 #   $Author: equilibrious $
-# $Revision: 702 $
+# $Revision: 706 $
 ########################################################################
 
 package Fuse::PDF;
@@ -15,7 +15,26 @@ use Fuse qw(:xattr);
 use CAM::PDF;
 use Fuse::PDF::FS;
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
+
+{
+   # Hack fix for Fuse 0.09 which has the wrong constants for Mac.  Get the right values directly from the .h file
+   if (open my $fh, '<', '/usr/include/sys/xattr.h') {
+      my $content = do { local $/ = undef; <$fh> };
+      close $fh;
+      my %consts = $content =~ m/\#define \s+ (XATTR_(?:CREATE|REPLACE)) \s+ (0x\d+|\d+)/gxms;
+      for my $name (keys %consts) {
+         my $value = $consts{$name} || next;
+         if ($value =~ m/0x(\d+)/xms) {
+            $value = hex $1;
+         }
+         no strict 'refs';
+         no warnings 'redefine';
+         *{$name} = sub { return $value; };
+      }
+   }
+}
+
 
 sub new {
    my ($pkg, $filename, $extra) = @_;
@@ -160,8 +179,8 @@ sub mount {
       setxattr => sub {
          my ($file, $key, $value, $flags) = @_;
          my %flags = (
-            create  => $flags & XATTR_CREATE,
-            replace => $flags & XATTR_REPLACE,
+            create  => $flags & XATTR_CREATE(),
+            replace => $flags & XATTR_REPLACE(),
          );
          return $fs->fs_setxattr($file, $key, $value, \%flags);
       },
@@ -391,7 +410,8 @@ enough that I was inspired to implement it!
 =cut
 
 # Local Variables:
-#   mode: cperl
+#   mode: perl
+#   perl-indent-level: 3
 #   cperl-indent-level: 3
 #   fill-column: 78
 #   indent-tabs-mode: nil

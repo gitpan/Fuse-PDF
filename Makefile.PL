@@ -7,10 +7,10 @@ WriteMakefile
           'PREREQ_PM' => {
                            'CAM::PDF' => '1.00',
                            'Fuse' => '0.08',
-                           'Readonly' => '0',
+                           'Readonly' => '1.00',
                            'Test::Class' => '0',
                            'Test::More' => '0.62',
-                           'Test::Virtual::Filesystem' => '0'
+                           'Test::Virtual::Filesystem' => '0.03'
                          },
           'INSTALLDIRS' => 'site',
           'EXE_FILES' => [

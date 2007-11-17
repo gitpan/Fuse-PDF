@@ -48,7 +48,14 @@ for (1..50) {
 }
 die 'Failed to mount the filesystem' if !$success;
 
-Test::Virtual::Filesystem->new({mountdir => $mntdir, compatible => '0.01'})->runtests;
+my $test = Test::Virtual::Filesystem->new({mountdir => $mntdir, compatible => '0.02'});
+$test->test_xattr(1);
+$test->test_chown(0);
+$test->test_permissions(0);
+$test->test_special(0);
+$test->test_nlink(0);
+$test->test_hardlink(0);
+$test->runtests;
 
 eval {
    require Test::Memory::Cycle;
@@ -60,6 +67,8 @@ SKIP: {
    Test::Memory::Cycle::memory_cycle_ok($fs);
 }
 
+#<STDIN>;  # pause to let me fiddle with the fs manually before unmounting
+
 system 'umount', $mntdir;
 if (POSIX::WEXITSTATUS($?) != 0) {
    system 'fusermount', '-u', $mntdir;
@@ -68,4 +77,14 @@ if (POSIX::WEXITSTATUS($?) != 0) {
    }
 }
 
-1;
+__END__
+
+# Local Variables:
+#   mode: perl
+#   perl-indent-level: 3
+#   cperl-indent-level: 3
+#   fill-column: 78
+#   indent-tabs-mode: nil
+#   c-indentation-style: bsd
+# End:
+# ex: set ts=8 sts=4 sw=4 tw=78 ft=perl expandtab :
