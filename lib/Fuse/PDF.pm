@@ -1,35 +1,39 @@
 #######################################################################
 #      $URL: svn+ssh://equilibrious@equilibrious.net/home/equilibrious/svnrepos/chrisdolan/Fuse-PDF/lib/Fuse/PDF.pm $
-#     $Date: 2007-11-16 23:16:28 -0600 (Fri, 16 Nov 2007) $
+#     $Date: 2007-11-22 00:25:16 -0600 (Thu, 22 Nov 2007) $
 #   $Author: equilibrious $
-# $Revision: 706 $
+# $Revision: 717 $
 ########################################################################
 
 package Fuse::PDF;
 
 use warnings;
 use strict;
+use 5.008;
+
 use English qw(-no_match_vars);
-use Carp qw(croak);
+use Carp qw(croak carp);
 use Fuse qw(:xattr);
 use CAM::PDF;
+use Fuse::PDF::ContentFS;
 use Fuse::PDF::FS;
 
-our $VERSION = '0.03';
+our $VERSION = '0.05';
 
 {
-   # Hack fix for Fuse 0.09 which has the wrong constants for Mac.  Get the right values directly from the .h file
+   # Hack fix for Fuse 0.09 which has the wrong constants for Mac.  Get the
+   # right values directly from the .h file, if available
    if (open my $fh, '<', '/usr/include/sys/xattr.h') {
-      my $content = do { local $/ = undef; <$fh> };
-      close $fh;
-      my %consts = $content =~ m/\#define \s+ (XATTR_(?:CREATE|REPLACE)) \s+ (0x\d+|\d+)/gxms;
+      my $content = do { local $INPUT_RECORD_SEPARATOR = undef; <$fh> };
+      close $fh or carp 'Failed to close xattr.h';
+      my %consts = $content =~ m/\#define \s+ (XATTR_(?:CREATE|REPLACE)) \s+ (0x\d+|\d+)/gxms; ## no critic(RegularExpressions::ProhibitEscapedMetacharacters) -- Perl::Critic v1.08 bug...
       for my $name (keys %consts) {
          my $value = $consts{$name} || next;
          if ($value =~ m/0x(\d+)/xms) {
             $value = hex $1;
          }
-         no strict 'refs';
-         no warnings 'redefine';
+         no warnings 'redefine'; ## no critic(TestingAndDebugging::ProhibitNoWarnings)
+         no strict 'refs';       ## no critic(TestingAndDebugging::ProhibitNoStrict)
          *{$name} = sub { return $value; };
       }
    }
@@ -48,6 +52,7 @@ sub new {
       compact       => 0,
       fs_name       => undef,
       %{$extra},
+      pdf_mtime => -e $filename ? (stat $filename)[9] : $BASETIME,  ## no critic(MagicNumber)
       pdf => $pdf,
    }, $pkg;
    return $self;
@@ -56,7 +61,10 @@ sub new {
 sub fs {
    my ($self) = @_;
 
-   my $fs = Fuse::PDF::FS->new({
+   my $fs_class = $self->{fs_name} eq 'pdf' ? 'Fuse::PDF::ContentFS' : 'Fuse::PDF::FS';
+
+   my $fs = $fs_class->new({
+      pdf_mtime => $self->{pdf_mtime},
       pdf => $self->{pdf},
       fs_name => $self->{fs_name},
    }) or croak 'Failed to open the PDF or create a filesystem inside';
@@ -73,7 +81,7 @@ sub fs {
    return $fs;
 }
 
-sub mount {
+sub mount {  ## no critic(Subroutines::ProhibitExcessComplexity)
    my ($self, $mountdir, $options) = @_;
    $options ||= {};
 
@@ -93,109 +101,160 @@ sub mount {
    Fuse::main(
       mountpoint => $mountdir,
 
-      getattr => sub {
-         my ($file) = @_;
-         return $fs->fs_getattr($file);
-      },
-      readlink => sub {
-         my ($file) = @_;
-         return $fs->fs_readlink($file);
-      },
-      getdir => sub {
-         my ($file) = @_;
-         return $fs->fs_getdir($file);
-      },
-      mknod => sub {
-         my ($file, $modes, $dev) = @_;
-         return $fs->fs_mknod($file, $modes, $dev);
-      },
-      mkdir => sub {
-         my ($file, $perms) = @_;
-         return $fs->fs_mkdir($file, $perms);
-      },
-      unlink => sub {
-         my ($file) = @_;
-         return $fs->fs_unlink($file);
-      },
-      rmdir => sub {
-         my ($file) = @_;
-         return $fs->fs_rmdir($file);
-      },
-      symlink => sub {
-         my ($link, $file) = @_;
-         return $fs->fs_symlink($link, $file);
-      },
-      rename => sub {
-         my ($oldfile, $file) = @_;
-         return $fs->fs_rename($oldfile, $file);
-      },
-      link => sub {
-         my ($srcfile, $file) = @_;
-         return $fs->fs_link($srcfile, $file);
-      },
-      chmod => sub {
-         my ($file, $perms) = @_;
-         return $fs->fs_chmod($file, $perms);
-      },
-      chown => sub {
-         my ($file, $uid, $gid) = @_;
-         return $fs->fs_chown($file, $uid, $gid);
-      },
-      truncate => sub {
-         my ($file, $length) = @_;
-         return $fs->fs_truncate($file, $length);
-      },
-      utime => sub {
-         my ($file, $atime, $utime) = @_;
-         return $fs->fs_utime($file, $atime, $utime);
-      },
-      open => sub {
-         my ($file, $mode) = @_;
-         return $fs->fs_open($file, $mode);
-      },
-      read => sub {
-         my ($file, $size, $offset) = @_;
-         return $fs->fs_read($file, $size, $offset);
-      },
-      write => sub {
-         my ($file, $str, $offset) = @_;
-         return $fs->fs_write($file, $str, $offset);
-      },
-      statfs => sub {
-         return $fs->fs_statfs();
-      },
-      flush => sub {
-         my ($file) = @_;
-         return $fs->fs_flush($file);
-      },
-      release => sub {
-         my ($file, $mode) = @_;
-         return $fs->fs_release($file, $mode);
-      },
-      fsync => sub {
-         my ($file, $flags) = @_;
-         return $fs->fs_fsync($file, $flags);
-      },
-      setxattr => sub {
-         my ($file, $key, $value, $flags) = @_;
-         my %flags = (
-            create  => $flags & XATTR_CREATE(),
-            replace => $flags & XATTR_REPLACE(),
-         );
-         return $fs->fs_setxattr($file, $key, $value, \%flags);
-      },
-      getxattr => sub {
-         my ($file, $key) = @_;
-         return $fs->fs_getxattr($file, $key);
-      },
-      listxattr => sub {
-         my ($file, $key) = @_;
-         return $fs->fs_listxattr($file);
-      },
-      removexattr => sub {
-         my ($file, $key) = @_;
-         return $fs->fs_removexattr($file, $key);
-      },
+      $fs->can('fs_getattr') ? (
+         getattr => sub {
+            my ($file) = @_;
+            return $fs->fs_getattr($file);
+         }
+      ) : (),
+      $fs->can('fs_readlink') ? (
+         readlink => sub {
+            my ($file) = @_;
+            return $fs->fs_readlink($file);
+         }
+      ) : (),
+      $fs->can('fs_getdir') ? (
+         getdir => sub {
+            my ($file) = @_;
+            return $fs->fs_getdir($file);
+         }
+      ) : (),
+      $fs->can('fs_mknod') ? (
+         mknod => sub {
+            my ($file, $modes, $dev) = @_;
+            return $fs->fs_mknod($file, $modes, $dev);
+         }
+      ) : (),
+      $fs->can('fs_mkdir') ? (
+         mkdir => sub {
+            my ($file, $perms) = @_;
+            return $fs->fs_mkdir($file, $perms);
+         }
+      ) : (),
+      $fs->can('fs_unlink') ? (
+         unlink => sub {
+            my ($file) = @_;
+            return $fs->fs_unlink($file);
+         }
+      ) : (),
+      $fs->can('fs_rmdir') ? (
+         rmdir => sub {
+            my ($file) = @_;
+            return $fs->fs_rmdir($file);
+         }
+      ) : (),
+      $fs->can('fs_symlink') ? (
+         symlink => sub {
+            my ($link, $file) = @_;
+            return $fs->fs_symlink($link, $file);
+         }
+      ) : (),
+      $fs->can('fs_rename') ? (
+         rename => sub {
+            my ($oldfile, $file) = @_;
+            return $fs->fs_rename($oldfile, $file);
+         }
+      ) : (),
+      $fs->can('fs_link') ? (
+         link => sub {
+            my ($srcfile, $file) = @_;
+            return $fs->fs_link($srcfile, $file);
+         }
+      ) : (),
+      $fs->can('fs_chmod') ? (
+         chmod => sub {
+            my ($file, $perms) = @_;
+            return $fs->fs_chmod($file, $perms);
+         }
+      ) : (),
+      $fs->can('fs_chown') ? (
+         chown => sub {
+            my ($file, $uid, $gid) = @_;
+            return $fs->fs_chown($file, $uid, $gid);
+         }
+      ) : (),
+      $fs->can('fs_truncate') ? (
+         truncate => sub {
+            my ($file, $length) = @_;
+            return $fs->fs_truncate($file, $length);
+         }
+      ) : (),
+      $fs->can('fs_utime') ? (
+         utime => sub {
+            my ($file, $atime, $utime) = @_;
+            return $fs->fs_utime($file, $atime, $utime);
+         }
+      ) : (),
+      $fs->can('fs_open') ? (
+         open => sub {
+            my ($file, $mode) = @_;
+            return $fs->fs_open($file, $mode);
+         }
+      ) : (),
+      $fs->can('fs_read') ? (
+         read => sub {
+            my ($file, $size, $offset) = @_;
+            return $fs->fs_read($file, $size, $offset);
+         }
+      ) : (),
+      $fs->can('fs_write') ? (
+         write => sub {
+            my ($file, $str, $offset) = @_;
+            return $fs->fs_write($file, $str, $offset);
+         }
+      ) : (),
+      $fs->can('fs_statfs') ? (
+         statfs => sub {
+            return $fs->fs_statfs();
+         }
+      ) : (),
+      $fs->can('fs_flush') ? (
+         flush => sub {
+            my ($file) = @_;
+            return $fs->fs_flush($file);
+         }
+      ) : (),
+      $fs->can('fs_release') ? (
+         release => sub {
+            my ($file, $mode) = @_;
+            return $fs->fs_release($file, $mode);
+         }
+      ) : (),
+      $fs->can('fs_fsync') ? (
+         fsync => sub {
+            my ($file, $flags) = @_;
+            return $fs->fs_fsync($file, $flags);
+         }
+      ) : (),
+      $fs->can('fs_setxattr') ? (
+         setxattr => sub {
+            my ($file, $key, $value, $flags) = @_;
+            my %flags = (
+               create  => $flags & XATTR_CREATE(),
+               replace => $flags & XATTR_REPLACE(),
+                );
+            return $fs->fs_setxattr($file, $key, $value, \%flags);
+         }
+      ) : (),
+      $fs->can('fs_getxattr') ? (
+         getxattr => sub {
+            my ($file, $key) = @_;
+            return $fs->fs_getxattr($file, $key);
+         }
+      ) : (),
+      $fs->can('fs_listxattr') ? (
+         listxattr => sub {
+            my ($file, $key) = @_;
+            return $fs->fs_listxattr($file);
+         }
+      ) : (),
+      $fs->can('fs_removexattr') ? (
+         removexattr => sub {
+            my ($file, $key) = @_;
+            return $fs->fs_removexattr($file, $key);
+         }
+      ) : (),
+
       threaded => 0,
       %{$options},
    );

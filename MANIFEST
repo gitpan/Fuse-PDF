@@ -2,6 +2,8 @@ bin/mount_pdf
 Build.PL
 Changes
 lib/Fuse/PDF.pm
+lib/Fuse/PDF/ContentFS.pm
+lib/Fuse/PDF/ErrnoHacks.pm
 lib/Fuse/PDF/FS.pm
 Makefile.PL
 MANIFEST			This list of files

@@ -5,12 +5,12 @@ WriteMakefile
           'NAME' => 'Fuse::PDF',
           'VERSION_FROM' => 'lib/Fuse/PDF.pm',
           'PREREQ_PM' => {
-                           'CAM::PDF' => '1.00',
+                           'CAM::PDF' => '1.11',
                            'Fuse' => '0.08',
                            'Readonly' => '1.00',
                            'Test::Class' => '0',
                            'Test::More' => '0.62',
-                           'Test::Virtual::Filesystem' => '0.03'
+                           'Test::Virtual::Filesystem' => '0.06'
                          },
           'INSTALLDIRS' => 'site',
           'EXE_FILES' => [

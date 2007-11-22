@@ -1,14 +1,15 @@
 #######################################################################
 #      $URL: svn+ssh://equilibrious@equilibrious.net/home/equilibrious/svnrepos/chrisdolan/Fuse-PDF/lib/Fuse/PDF/FS.pm $
-#     $Date: 2007-11-16 23:16:28 -0600 (Fri, 16 Nov 2007) $
+#     $Date: 2007-11-21 22:56:41 -0600 (Wed, 21 Nov 2007) $
 #   $Author: equilibrious $
-# $Revision: 706 $
+# $Revision: 716 $
 ########################################################################
 
 package Fuse::PDF::FS;
 
 use warnings;
 use strict;
+use 5.008;
 
 use Carp qw(carp);
 use Readonly;
@@ -17,28 +18,9 @@ use Fcntl qw(:mode);
 use English qw(-no_match_vars);
 use CAM::PDF;
 use CAM::PDF::Node;
+use Fuse::PDF::ErrnoHacks;
 
-our $VERSION = '0.03';
-
-BEGIN {
-   # ENOATTR isn't commonly defined in POSIX.pm.  Try to find it, or use a fallback value.
-   if (!defined *ENOATTR{CODE}) {
-      if (open my $fh, '<', '/usr/include/sys/errno.h') {
-         my $content = do { local $/ = undef; <$fh> };
-         close $fh;
-         if ($content =~ m/\#define \s+ ENOATTR \s+ (0x\d+|\d+)/xms) {
-            my $errno = $1;
-            if ($errno =~ m/0x(\d+)/xms) {
-               $errno = hex $1;
-            }
-            *ENOATTR = sub { return $errno; };
-         }
-      }
-      if (!defined *ENOATTR{CODE}) {
-         *ENOATTR = sub { return EIO(); };
-      }
-   }
-}
+our $VERSION = '0.05';
 
 # integer, increases when we break file format backward compatibility
 Readonly::Scalar my $COMPATIBILITY_VERSION => 2;
@@ -87,7 +69,7 @@ sub new {
    my $root = $self->{pdf}->getRootDict();
    my ($o, $g) = ($root->{objnum}, $root->{gennum});
 
-   $root->{FusePDF} ||= CAM::PDF::Node->new('dictionary', {}, $o, $g);
+   $root->{$FS_ROOT_KEY} ||= CAM::PDF::Node->new('dictionary', {}, $o, $g);
    my $fs_holder = $root->{$FS_ROOT_KEY}->{value};
    if ($fs_holder->{$self->{fs_name}}) {
       $self->{fs} = $self->{pdf}->getValue($fs_holder->{$self->{fs_name}});
@@ -156,6 +138,7 @@ sub _software_name {
 sub save {
    my ($self, $filename) = @_;
    if ($self->{dirty}) {
+      $self->{pdf}->{changes}->{$self->{fs}->{root}->{objnum}} = 1;
       # TODO: atomically?
       $self->{fs}->{creator} = CAM::PDF::Node->new('string', $self->_software_name);
       $self->{fs}->{version} = CAM::PDF::Node->new('string', $self->VERSION);
@@ -179,24 +162,11 @@ sub save {
 sub previous_revision {
    my ($self) = @_;
 
-   my $content = \$self->{pdf}->{content};
-   return if !${$content};  # already wiped...
-
-   # Figure out line end character                                              
-   my ($lineend) = ${$content} =~ m/ (.)%%EOF.*?\z /xms;
-   return if !$lineend; # Corrupt PDF: Cannot find the end-of-file marker
-
-   my $eof = $lineend.'%%EOF';
-   my $i = rindex ${$content}, $eof;
-   my $j = rindex ${$content}, $eof, $i-1;
-   return if $j < 0; # just one revision
-
-   my $prev_content = (substr ${$content}, 0, $j) . $eof . $lineend;
-   # assume the passwords were the same in the previous rev
-   my ($opass, $upass, @perms) = $self->{pdf}->getPrefs;
+   my $prev_pdf = $self->{pdf}->previousRevision();
+   return if !$prev_pdf;
 
    return __PACKAGE__->new({
-      pdf => CAM::PDF->new($prev_content, $opass, $upass),
+      pdf => $prev_pdf,
       fs_name => $self->{fs_name},
    });
 }
@@ -254,7 +224,7 @@ sub fs_getattr {
        $f->{mode}->{value},
        $f->{nlink}->{value},
        $EFFECTIVE_USER_ID, # uid
-       $EFFECTIVE_GROUP_ID, # gid
+       0+$EFFECTIVE_GROUP_ID, # gid
        0, #rdev
        $size,
        $f->{mtime}->{value}, # atime not preserved
@@ -436,15 +406,15 @@ sub fs_truncate {
 }
 
 sub fs_utime {
-   my ($self, $abspath, $atime, $utime) = @_;
+   my ($self, $abspath, $atime, $mtime) = @_;
    my $f = $self->_file($abspath);
    return -$f if !ref $f;
 
    # Ignore atime
 
    # Set utime, if changed
-   if ($f->{mtime}->{value} != $utime) {
-      $f->{mtime}->{value} = $utime;
+   if ($f->{mtime}->{value} != $mtime) {
+      $f->{mtime}->{value} = $mtime;
       $self->{fs}->{mtime}->{value} = time;
       $self->{dirty} = 1;
    }
@@ -485,19 +455,19 @@ sub fs_statfs {
 }
 
 sub fs_flush {
-   my ($self, $file) = @_;
+   my ($self, $abspath) = @_;
    # TODO
    return 0;
 }
 
 sub fs_release {
-   my ($self, $file, $flags) = @_;
+   my ($self, $abspath, $flags) = @_;
    # TODO
    return 0;
 }
 
 sub fs_fsync {
-   my ($self, $file, $flags) = @_;
+   my ($self, $abspath, $flags) = @_;
    # TODO
    return 0;
 }
@@ -655,7 +625,7 @@ __END__
 
 =pod
 
-=for stopwords pdf
+=for stopwords pdf runtime EIO
 
 =head1 NAME
 
@@ -830,7 +800,7 @@ they can easily be converted to a FUSE implementation.
 
 =item $self->fs_truncate($file, $length)
 
-=item $self->fs_utime($file, $atime, $utime)
+=item $self->fs_utime($file, $atime, $mtime)
 
 =item $self->fs_open($file, $mode)
 

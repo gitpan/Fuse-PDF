@@ -17,7 +17,7 @@ use Getopt::Long;
 use Pod::Usage;
 use Fuse::PDF;
 
-our $VERSION = '0.03';
+our $VERSION = '0.05';
 
 my %opts = (
    verbose    => 0,
@@ -46,6 +46,7 @@ GetOptions(
    'k|keep'       => \$opts{keep},
    'f|fs=s'       => \$opts{fs_name},
    'fuseopts=s'   => \$opts{fuseopts},
+   'A|all'        => sub {$opts{fs_name} = 'pdf'},
    'h|help'       => \$opts{help},
    'V|version'    => \$opts{version},
 ) or pod2usage(1);
@@ -114,6 +115,7 @@ under the same terms as Perl itself.
  mount_pdf -V
 
  Options:
+   -A --all            mount the whole PDF (same as '-f pdf')
    -d --debug          turn on FUSE debug messages
    -p --password       prompt for a PDF user password, if needed
    -r --revision=num   roll back to particular revision before mounting (see below)

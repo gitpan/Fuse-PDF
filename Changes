@@ -1,5 +1,28 @@
 # History of Perl distribution Fuse-PDF.  This change log is valid YAML.
 
+0.05 :
+     - Released: 2007 Nov 22
+     - Summary: Filesystem for PDF itself
+
+     - Feature: Filesystem to represent the PDF itself ('mount_pdf -A' or 'mount_pdf -f pdf')
+       Credit: RGiersig@cpan.org
+       URL: http://use.perl.org/comments.pl?sid=37564&cid=59050
+
+     - Prerequisites: CAM::PDF v1.11
+     - Prerequisites: Test::Virtual::Filesystem v0.06
+
+     - Internals: Move POSIX:ENOATTR workaround to ErrnoHacks.pm
+     - Internals: Move Fuse::PDF::FS::previous_revision implementation to CAM::PDF
+
+0.04 :
+     - Released: never (forgot to upload to CPAN!)
+     - Summary: Track Test::Virtual::Filesystem v0.04 API changes
+
+     - Fix: Test::Virtual::Filesystem renamed its test_* methods to enable_test_*
+     - Internals: Fix Perl::Critic violations (v1.080)
+
+     - Prerequisites: Test::Virtual::Filesystem v0.04
+
 0.03 :
      - Released: 2007 Nov 16
      - Summary: xattr bug fixes
@@ -13,6 +36,8 @@
 
      - Testing: turned on Test::Virtual::Filesystem xattr tests
      - Testing: turned off several other Test::Virtual::Filesystem tests pre-emptively
+
+     - Press: http://www.leyrer.priv.at/martin/2007/11/index.html#PDF-Filesystem
 
 0.02 :
      - Released: 2007 Nov 15
