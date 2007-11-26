@@ -10,7 +10,7 @@ WriteMakefile
                            'Readonly' => '1.00',
                            'Test::Class' => '0',
                            'Test::More' => '0.62',
-                           'Test::Virtual::Filesystem' => '0.06'
+                           'Test::Virtual::Filesystem' => '0.08'
                          },
           'INSTALLDIRS' => 'site',
           'EXE_FILES' => [

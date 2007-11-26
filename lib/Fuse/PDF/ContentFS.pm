@@ -1,8 +1,8 @@
 #######################################################################
 #      $URL: svn+ssh://equilibrious@equilibrious.net/home/equilibrious/svnrepos/chrisdolan/Fuse-PDF/lib/Fuse/PDF/ContentFS.pm $
-#     $Date: 2007-11-22 00:25:16 -0600 (Thu, 22 Nov 2007) $
+#     $Date: 2007-11-26 00:38:23 -0600 (Mon, 26 Nov 2007) $
 #   $Author: equilibrious $
-# $Revision: 717 $
+# $Revision: 723 $
 ########################################################################
 
 package Fuse::PDF::ContentFS;
@@ -21,7 +21,7 @@ use CAM::PDF::Node;
 use Fuse::PDF::ErrnoHacks;
 use Fuse::PDF::FS;
 
-our $VERSION = '0.05';
+our $VERSION = '0.06';
 
 Readonly::Scalar my $PATHLEN => 255;
 Readonly::Scalar my $BLOCKSIZE => 4096;
@@ -256,6 +256,16 @@ sub fs_symlink {
 }
 
 sub fs_rename {
+   my ($self, $srcpath, $destpath) = @_;
+   my ($f_s, $src) = $self->_file($srcpath);
+   if (defined $src) {
+      return -EIO() if !$f_s->can('fs_rename');
+      my ($f_d, $dest) = $self->_file($destpath);
+      if (defined $dest) {
+         return -EXDEV() if $f_s != $f_d;
+         return $f_s->fs_rename($src, $dest);
+      }
+   }
    return -EIO();
 }
 

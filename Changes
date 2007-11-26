@@ -1,5 +1,15 @@
 # History of Perl distribution Fuse-PDF.  This change log is valid YAML.
 
+0.06 :
+     - Released: 2007 Nov 26
+     - Summary: Implemented rename
+
+     - Feature: Implemented fs_rename for Fuse::PDF::ContentFS (passthru mode) and Fuse::PDF::FS
+     - Prerequisites: Test::Virtual::Filesystem v0.08 (for rename tests)
+     - Internals: Better rename() symlink support in file search helper methods in Fuse::PDF::FS
+
+     - Fix: Prevent uninitialized var warning in Fuse::PDF::fs()
+
 0.05 :
      - Released: 2007 Nov 22
      - Summary: Filesystem for PDF itself

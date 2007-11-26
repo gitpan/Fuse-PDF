@@ -1,8 +1,8 @@
 #######################################################################
 #      $URL: svn+ssh://equilibrious@equilibrious.net/home/equilibrious/svnrepos/chrisdolan/Fuse-PDF/lib/Fuse/PDF/FS.pm $
-#     $Date: 2007-11-21 22:56:41 -0600 (Wed, 21 Nov 2007) $
+#     $Date: 2007-11-26 00:38:23 -0600 (Mon, 26 Nov 2007) $
 #   $Author: equilibrious $
-# $Revision: 716 $
+# $Revision: 723 $
 ########################################################################
 
 package Fuse::PDF::FS;
@@ -20,7 +20,7 @@ use CAM::PDF;
 use CAM::PDF::Node;
 use Fuse::PDF::ErrnoHacks;
 
-our $VERSION = '0.05';
+our $VERSION = '0.06';
 
 # integer, increases when we break file format backward compatibility
 Readonly::Scalar my $COMPATIBILITY_VERSION => 2;
@@ -355,7 +355,57 @@ sub fs_symlink {
 }
 
 sub fs_rename {
-   return -EIO();
+   my ($self, $srcpath, $destpath) = @_;
+   my ($errno, $srcdirs, $srcpaths) = $self->_readpath($srcpath);
+   return -$errno if $errno;
+
+   my ($desterrno, $destdirs, $destpaths) = $self->_readpath($destpath, 1);
+   return -$desterrno if $desterrno;
+
+   my $src = $srcdirs->[-1];
+   my $dest = $destdirs->[-1];
+
+   my $root = $self->{fs}->{root}->{value};
+   return -EACCESS if $root == $src;
+
+   if ($dest) {
+      return 0 if $dest == $src; # rename to self always works
+      return -EACCESS if $root == $dest;
+      my $srctype = $src->{type}->{value};
+      my $desttype = $dest->{type}->{value};
+      return -ENOTDIR() if 'd' eq $srctype && 'd' ne $desttype;
+      return -EISDIR() if 'd' ne $srctype && 'd' eq $desttype;
+      if ('d' eq $desttype && 0 != scalar keys %{$dest->{content}->{value}}) {
+         return -ENOTEMPTY();
+      }
+   }
+
+   # Ensure dest is not inside src
+   if (@{$srcpaths} < @{$destpaths}) {
+      my $match = 1;
+      for my $i (0 .. $#{$srcpaths}) {
+         if ($srcpaths->[$i] ne $destpaths->[$i]) {
+            $match = 0;
+            last;
+         }
+      }
+      return -EINVAL() if $match;
+   }
+
+   my $srcparent  = $srcdirs->[-2];  ## no critic(MagicNumber)
+   my $destparent = $destdirs->[-2];  ## no critic(MagicNumber)
+   my $srcname    = $srcpaths->[-1];
+   my $destname   = $destpaths->[-1];
+
+   # supposed to set dest before removing src to avoid data loss, but meh...
+   $destparent->{content}->{value}->{$destname} = delete $srcparent->{content}->{value}->{$srcname};
+
+   my $mtime = time;
+   $srcparent->{mtime}->{value} = $mtime;
+   $destparent->{mtime}->{value} = $mtime; # harmless if $srcparent == $destparent
+   $self->{fs}->{mtime}->{value} = $mtime;
+   $self->{dirty} = 1;
+   return 0;
 }
 
 sub fs_link {
@@ -366,7 +416,7 @@ sub fs_chmod {
    my ($self, $abspath, $perms) = @_;
    my $f = $self->_file($abspath);
    return -$f if !ref $f;
-   $f->{mode}->{value} = $perms;
+   $f->{mode}->{value} = S_IFMT($f->{mode}->{value}) | S_IMODE($perms);
    $self->{fs}->{mtime}->{value} = time;
    $self->{dirty} = 1;
    return 0;
@@ -530,23 +580,27 @@ sub fs_removexattr {
 
 sub _parent {
    my ($self, $path) = @_;
-   $path =~ s{/+\z}{}xms;
-   return ENOTDIR() if q{} eq $path;
-   if ($path =~ s{([^/]+)\z}{.}xms) {
-      my $name = $1;
-      return $self->_file($path, 1), $name;
-   } else {
-      return ENOTDIR();  # should never get here
-   }
+   my ($errno, $dirs, $paths) = $self->_readpath($path, 1);
+   return $errno if $errno;
+   return $dirs->[-2], $paths->[-1], $dirs->[-1];  ## no critic(MagicNumber)
 }
 
 sub _file {
-   my ($self, $path, $follow_top_symlink) = @_;
+   my ($self, $path) = @_;
+   my ($errno, $dirs, $paths) = $self->_readpath($path);
+   return $errno if $errno;
+   return $dirs->[-1];
+}
 
-   my $nsymlinks = 0;
+
+sub _readpath {
+   my ($self, $path, $parent, $nsymlinks) = @_;
+
+   $nsymlinks ||= 0;
 
    my @dirs = ($self->{fs}->{root}->{value});
    my @path = split m{/}xms, $path;
+   my @realpath;
 
    for (my $i = 0; $i < @path; ++$i) {    ##no critic(ProhibitCStyleForLoops)
       my $entry = $path[$i];
@@ -557,27 +611,37 @@ sub _file {
       next if q{.} eq $entry;
       if (q{..} eq $entry) {
          pop @dirs;
+         pop @realpath;
          return EACCESS() if !@dirs;      # tried to get parent of root
+         next;
       }
+      push @realpath, $entry;
 
       my $next = $dirs[-1]->{content}->{value}->{$entry};
-      return ENOENT() if !$next;
+      if (!$next) {
+         if ($parent && $i == $#path) {
+            push @dirs, undef;
+            return 0, \@dirs, \@realpath;
+         }
+         return ENOENT();
+      }
       my $f = $next->{value};
       if ('l' eq $f->{type}->{value}) {
-         if ($follow_top_symlink || $i != $#path) {
+         if ($i != $#path) {
             return ELOOP() if ++$nsymlinks >= $ELOOP_LIMIT;
             my $linkpath = $f->{content}->{value};
 
             # cannot leave the filesystem
             return EACCESS() if $linkpath =~ m{\A /}xms;
 
-            splice @path, $i + 1, 0, split m{/}xms, $linkpath;
+            splice @path, $i, 1, split m{/}xms, $linkpath;
+            return $self->_readpath((join q{/}, @path), $parent, $nsymlinks);
          }
       }
       push @dirs, $f;
    }
 
-   return $dirs[-1] || ENOENT();
+   return 0, \@dirs, \@realpath;
 }
 
 sub _newfile {

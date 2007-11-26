@@ -48,7 +48,7 @@ for (1..50) {
 }
 die 'Failed to mount the filesystem' if !$success;
 
-my $test = Test::Virtual::Filesystem->new({mountdir => $mntdir, compatible => '0.06'});
+my $test = Test::Virtual::Filesystem->new({mountdir => $mntdir, compatible => '0.08'});
 # Leave symlink default alone.  Test::Virtual::Filesystem knows best.
 $test->enable_test_xattr(1);
 $test->enable_test_chown(0);

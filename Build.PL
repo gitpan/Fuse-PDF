@@ -22,7 +22,7 @@ Module::Build->new(
    build_requires => {
       'Test::More' => 0.62,                   # authored against 0.72
       'Test::Class' => 0,                     # authored against 0.24
-      'Test::Virtual::Filesystem' => '0.06',  # usually synchronized with t/fusepdf.t
+      'Test::Virtual::Filesystem' => '0.08',  # usually synchronized with t/fusepdf.t
    },
    script_files => [qw(
       bin/mount_pdf

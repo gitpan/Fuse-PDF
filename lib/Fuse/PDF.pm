@@ -1,8 +1,8 @@
 #######################################################################
 #      $URL: svn+ssh://equilibrious@equilibrious.net/home/equilibrious/svnrepos/chrisdolan/Fuse-PDF/lib/Fuse/PDF.pm $
-#     $Date: 2007-11-22 00:25:16 -0600 (Thu, 22 Nov 2007) $
+#     $Date: 2007-11-26 00:38:23 -0600 (Mon, 26 Nov 2007) $
 #   $Author: equilibrious $
-# $Revision: 717 $
+# $Revision: 723 $
 ########################################################################
 
 package Fuse::PDF;
@@ -18,7 +18,7 @@ use CAM::PDF;
 use Fuse::PDF::ContentFS;
 use Fuse::PDF::FS;
 
-our $VERSION = '0.05';
+our $VERSION = '0.06';
 
 {
    # Hack fix for Fuse 0.09 which has the wrong constants for Mac.  Get the
@@ -61,7 +61,8 @@ sub new {
 sub fs {
    my ($self) = @_;
 
-   my $fs_class = $self->{fs_name} eq 'pdf' ? 'Fuse::PDF::ContentFS' : 'Fuse::PDF::FS';
+   my $fs_class = $self->{fs_name} && $self->{fs_name} eq 'pdf'
+       ? 'Fuse::PDF::ContentFS' : 'Fuse::PDF::FS';
 
    my $fs = $fs_class->new({
       pdf_mtime => $self->{pdf_mtime},
