@@ -6,7 +6,11 @@ WriteMakefile
           'VERSION_FROM' => 'lib/Fuse/PDF.pm',
           'PREREQ_PM' => {
                            'CAM::PDF' => '1.11',
+                           'Carp' => '0',
+                           'Fcntl' => '0',
                            'Fuse' => '0.08',
+                           'MIME::Base64' => '3',
+                           'POSIX' => '0',
                            'Readonly' => '1.00',
                            'Test::Class' => '0',
                            'Test::More' => '0.62',

@@ -5,10 +5,16 @@ Module::Build->new(
    dist_author => 'Chris Dolan <cdolan@cpan.org>',
    license => 'perl',
    requires => {
-      'perl' => '5.8.0',    # authored against 5.8.6
-      'Fuse' => '0.08',     # prefer 0.09 and beyond
-      'CAM::PDF' => '1.11', # authored against 1.11
-      'Readonly' => '1.00', # authored against 1.03
+      'perl' => '5.8.0',        # authored against 5.8.6
+      'Fuse' => '0.08',         # prefer 0.09 and beyond
+      'CAM::PDF' => '1.11',     # authored against 1.11 which has revision support
+      'Readonly' => '1.00',     # authored against 1.03
+      'MIME::Base64' => 3.0,    # authored against 3.07
+
+      # for completeness, and CPANTS:
+      'Carp' => 0,
+      'POSIX' => 0,
+      'Fcntl' => 0,
    },
    recommends => {
       # Needed for mount_pdf program

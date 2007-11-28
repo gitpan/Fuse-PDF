@@ -1,5 +1,13 @@
 # History of Perl distribution Fuse-PDF.  This change log is valid YAML.
 
+0.07 :
+     - Released: 2007 Nov 27
+     - Summary: Expose embedded images under 'mount_pdf -A'
+
+     - Feature: The 'mount_pdf -A' option shows embedded images as separate PDF files
+     - Prerequisites: Added MIME::Base64 v3.0
+     - Internals: Added Fuse::PDF::ImageTemplate, a skeleton for the image PDFs
+
 0.06 :
      - Released: 2007 Nov 26
      - Summary: Implemented rename

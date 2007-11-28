@@ -17,7 +17,7 @@ use Getopt::Long;
 use Pod::Usage;
 use Fuse::PDF;
 
-our $VERSION = '0.06';
+our $VERSION = '0.07';
 
 my %opts = (
    verbose    => 0,

@@ -1,8 +1,8 @@
 #######################################################################
 #      $URL: svn+ssh://equilibrious@equilibrious.net/home/equilibrious/svnrepos/chrisdolan/Fuse-PDF/lib/Fuse/PDF/ErrnoHacks.pm $
-#     $Date: 2007-11-26 00:38:23 -0600 (Mon, 26 Nov 2007) $
+#     $Date: 2007-11-27 23:43:19 -0600 (Tue, 27 Nov 2007) $
 #   $Author: equilibrious $
-# $Revision: 723 $
+# $Revision: 724 $
 ########################################################################
 package #
   Fuse::PDF::ErrnoHacks;
@@ -13,7 +13,7 @@ use POSIX qw();
 use Carp qw(carp);
 use English qw(-no_match_vars);
 
-our $VERSION = '0.06';
+our $VERSION = '0.07';
 
 BEGIN {
    # ENOATTR isn't commonly defined in POSIX.pm.  Try to find it, or use a fallback value.

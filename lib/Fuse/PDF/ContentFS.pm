@@ -1,8 +1,8 @@
 #######################################################################
 #      $URL: svn+ssh://equilibrious@equilibrious.net/home/equilibrious/svnrepos/chrisdolan/Fuse-PDF/lib/Fuse/PDF/ContentFS.pm $
-#     $Date: 2007-11-26 00:38:23 -0600 (Mon, 26 Nov 2007) $
+#     $Date: 2007-11-27 23:43:19 -0600 (Tue, 27 Nov 2007) $
 #   $Author: equilibrious $
-# $Revision: 723 $
+# $Revision: 724 $
 ########################################################################
 
 package Fuse::PDF::ContentFS;
@@ -20,8 +20,9 @@ use CAM::PDF;
 use CAM::PDF::Node;
 use Fuse::PDF::ErrnoHacks;
 use Fuse::PDF::FS;
+use Fuse::PDF::ImageTemplate;
 
-our $VERSION = '0.06';
+our $VERSION = '0.07';
 
 Readonly::Scalar my $PATHLEN => 255;
 Readonly::Scalar my $BLOCKSIZE => 4096;
@@ -41,7 +42,7 @@ Readonly::Scalar my $FS_ROOT_KEY => 'FusePDF';  # track value from Fuse::PDF::FS
 
 Readonly::Hash my %SCALARS => (map {$_ => 1} qw(string hexstring number boolean label));
 
-
+Readonly::Scalar my $IMAGE_CACHE_TIMEOUT => 15; # seconds
 
 # --------------------------------------------------
 
@@ -473,6 +474,97 @@ sub _page_fonts {
    };
 }
 
+sub _page_image {
+   my ($self, $i, $path) = @_;
+   my $pagenum = $path->[$i-2];
+   my ($imagenum) = $path->[$i] =~ m/\A(\d+)/xms;
+
+   $self->{image_cache} ||= {};
+   $self->{image_cache}->{$pagenum} ||= {};
+   my $cache = $self->{image_cache}->{$pagenum}->{$imagenum} ||= {};
+   
+   my $now = time;
+   if (!$cache->{timestamp} || $now - $cache->{timestamp} > $IMAGE_CACHE_TIMEOUT) {
+      my $content_tree = $self->{pdf}->getPageContentTree($pagenum);
+      my $gs = $content_tree->findImages();
+      my $image_node = $gs->{images}->[$imagenum - 1];
+      return if !$image_node;
+
+      #use Data::Dumper; print STDERR Dumper($image_node);
+
+      my $image;
+      if ('Do' eq $image_node->{type}) {
+         my $label = $image_node->{value}->[0];
+         $image = $self->{pdf}->dereference(q{/} . $label, $pagenum);
+         if ($image) {
+            $image = $image->{value};
+         }
+      } elsif ('BI' eq $image_node->{type}) {
+         $image = $image_node->{value}->[0];
+      }
+      return if !$image;
+
+      #{
+      #   local $image->{value}->{StreamData}->{value}
+      #      = q{.} x length($image->{value}->{StreamData}->{value});
+      #   use Data::Dumper; print STDERR "image $imagenum\n", Dumper($image);
+      #}
+
+      my $w = $image->{value}->{Width} || $image->{value}->{W} || 0;
+      if ($w) {
+         $w = $self->{pdf}->getValue($w);
+      }
+      my $h = $image->{value}->{Height} || $image->{value}->{H} || 0;
+      if ($h) {
+         $h = $self->{pdf}->getValue($h);
+      }
+
+      my $tmpl = Fuse::PDF::ImageTemplate->get_template_pdf();
+      my $media_array = $tmpl->getValue($tmpl->getPage(1)->{MediaBox});
+      $media_array->[2]->{value} = $w;
+      $media_array->[3]->{value} = $h; ## no critic(MagicNumber)
+      my $page = $tmpl->getPageContent(1);
+      $page =~ s/xxx/$w/igxms;
+      $page =~ s/yyy/$h/igxms;
+      $tmpl->setPageContent(1, $page);
+      my $tmpl_im_objnum = $tmpl->dereference('/Im0', 1)->{objnum};
+      if ($image->{objnum}) {
+         $tmpl->replaceObject($tmpl_im_objnum, $self->{pdf}, $image->{objnum}, 1);
+      } else {
+         $tmpl->replaceObject($tmpl_im_objnum, undef, CAM::PDF::Node->new('object', $image), 1);
+      }
+      $tmpl->cleanse();
+      $tmpl->cleansave(); # writes to RAM, not disk
+
+      #my $image_bytes = $image->{value}->{StreamData}->{value};
+      #my $image_bytes = $self->{pdf}->decodeOne($image);
+
+      $cache->{timestamp} = $now;
+      $cache->{content} = $tmpl->{content};
+   }
+
+   return {
+      type => 'f',
+      content => $cache->{content},
+   };
+}
+
+
+sub _page_images {
+   my ($self, $i, $path) = @_;
+   my $pagenum = $path->[$i-1];
+   
+   my $content_tree = $self->{pdf}->getPageContentTree($pagenum);
+   my $gs = $content_tree->findImages();
+
+   return {
+      type => 'd',
+      content => {
+         map { ($_ . '.pdf') => \&_page_image } 1 .. @{$gs->{images}},
+      },
+   };
+}
+
 sub _page {
    my ($self, $i, $path) = @_;
    my $pagenum = $path->[$i];
@@ -482,6 +574,7 @@ sub _page {
          'layout.txt' => \&_page_content,
          'text.txt' => \&_page_text,
          'fonts' => \&_page_fonts,
+         'images' => \&_page_images,
       },
    };
 }

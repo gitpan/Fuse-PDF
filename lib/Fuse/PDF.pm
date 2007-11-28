@@ -1,8 +1,8 @@
 #######################################################################
 #      $URL: svn+ssh://equilibrious@equilibrious.net/home/equilibrious/svnrepos/chrisdolan/Fuse-PDF/lib/Fuse/PDF.pm $
-#     $Date: 2007-11-26 00:38:23 -0600 (Mon, 26 Nov 2007) $
+#     $Date: 2007-11-27 23:43:19 -0600 (Tue, 27 Nov 2007) $
 #   $Author: equilibrious $
-# $Revision: 723 $
+# $Revision: 724 $
 ########################################################################
 
 package Fuse::PDF;
@@ -18,7 +18,7 @@ use CAM::PDF;
 use Fuse::PDF::ContentFS;
 use Fuse::PDF::FS;
 
-our $VERSION = '0.06';
+our $VERSION = '0.07';
 
 {
    # Hack fix for Fuse 0.09 which has the wrong constants for Mac.  Get the
