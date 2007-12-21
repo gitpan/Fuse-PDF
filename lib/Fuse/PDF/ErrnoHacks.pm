@@ -13,7 +13,7 @@ use POSIX qw();
 use Carp qw(carp);
 use English qw(-no_match_vars);
 
-our $VERSION = '0.07';
+our $VERSION = '0.08';
 
 BEGIN {
    # ENOATTR isn't commonly defined in POSIX.pm.  Try to find it, or use a fallback value.

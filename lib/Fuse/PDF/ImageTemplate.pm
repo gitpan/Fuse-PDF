@@ -15,7 +15,7 @@ use English qw(-no_match_vars);
 use MIME::Base64 qw();
 use CAM::PDF;
 
-our $VERSION = '0.07';
+our $VERSION = '0.08';
 
 my $content;  # cache
 sub get_template_pdf {

@@ -1,8 +1,8 @@
 #######################################################################
 #      $URL: svn+ssh://equilibrious@equilibrious.net/home/equilibrious/svnrepos/chrisdolan/Fuse-PDF/lib/Fuse/PDF/ContentFS.pm $
-#     $Date: 2007-11-27 23:43:19 -0600 (Tue, 27 Nov 2007) $
+#     $Date: 2007-11-29 00:11:04 -0600 (Thu, 29 Nov 2007) $
 #   $Author: equilibrious $
-# $Revision: 724 $
+# $Revision: 725 $
 ########################################################################
 
 package Fuse::PDF::ContentFS;
@@ -18,11 +18,13 @@ use Fcntl qw(:mode);
 use English qw(-no_match_vars);
 use CAM::PDF;
 use CAM::PDF::Node;
+use CAM::PDF::Renderer::Images; # included so PAR picks it up
+use CAM::PDF::Renderer::Text;   # included so PAR picks it up
 use Fuse::PDF::ErrnoHacks;
 use Fuse::PDF::FS;
 use Fuse::PDF::ImageTemplate;
 
-our $VERSION = '0.07';
+our $VERSION = '0.08';
 
 Readonly::Scalar my $PATHLEN => 255;
 Readonly::Scalar my $BLOCKSIZE => 4096;
@@ -429,7 +431,7 @@ sub _filesystems {
 
 sub _page_content {
    my ($self, $i, $path) = @_;
-   my $pagenum = $path->[$i-1];
+   my $pagenum = $path->[$i - 1];
    
    return {
       type => 'f',
@@ -439,7 +441,7 @@ sub _page_content {
 
 sub _page_text {
    my ($self, $i, $path) = @_;
-   my $pagenum = $path->[$i-1];
+   my $pagenum = $path->[$i - 2];
    
    return {
       type => 'f',
@@ -447,9 +449,21 @@ sub _page_text {
    };
 }
 
+sub _page_textfb {
+   my ($self, $i, $path) = @_;
+   my $pagenum = $path->[$i - 2];
+
+   my $gs = $self->{pdf}->getPageContentTree($pagenum)->render('CAM::PDF::Renderer::Text');
+   
+   return {
+      type => 'f',
+      content => $gs->toString(),
+   };
+}
+
 sub _page_font {
    my ($self, $i, $path) = @_;
-   my $pagenum = $path->[$i-2];
+   my $pagenum = $path->[$i - 2];
    my $fontname = $path->[$i];
    my $font = $self->{pdf}->getFont($pagenum, $fontname);
    my %meta = %{$font};
@@ -464,7 +478,7 @@ sub _page_font {
 
 sub _page_fonts {
    my ($self, $i, $path) = @_;
-   my $pagenum = $path->[$i-1];
+   my $pagenum = $path->[$i - 1];
    
    return {
       type => 'd',
@@ -476,7 +490,7 @@ sub _page_fonts {
 
 sub _page_image {
    my ($self, $i, $path) = @_;
-   my $pagenum = $path->[$i-2];
+   my $pagenum = $path->[$i - 2];
    my ($imagenum) = $path->[$i] =~ m/\A(\d+)/xms;
 
    $self->{image_cache} ||= {};
@@ -552,7 +566,7 @@ sub _page_image {
 
 sub _page_images {
    my ($self, $i, $path) = @_;
-   my $pagenum = $path->[$i-1];
+   my $pagenum = $path->[$i - 1];
    
    my $content_tree = $self->{pdf}->getPageContentTree($pagenum);
    my $gs = $content_tree->findImages();
@@ -572,9 +586,15 @@ sub _page {
       type => 'd',
       content => {
          'layout.txt' => \&_page_content,
-         'text.txt' => \&_page_text,
          'fonts' => \&_page_fonts,
          'images' => \&_page_images,
+         'text' => {
+            type => 'd',
+            content => {
+               'plain_text.txt' => \&_page_text,
+               'formatted_text.txt' => \&_page_textfb,
+            },
+         },
       },
    };
 }

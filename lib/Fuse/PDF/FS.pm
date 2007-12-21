@@ -20,7 +20,7 @@ use CAM::PDF;
 use CAM::PDF::Node;
 use Fuse::PDF::ErrnoHacks;
 
-our $VERSION = '0.07';
+our $VERSION = '0.08';
 
 # integer, increases when we break file format backward compatibility
 Readonly::Scalar my $COMPATIBILITY_VERSION => 2;

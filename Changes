@@ -1,5 +1,26 @@
 # History of Perl distribution Fuse-PDF.  This change log is valid YAML.
 
+0.08 :
+     - Released: 2007 Dec 20
+     - Summary: Mac GUI; text formatting in -A mode
+
+     - Incompatibility: Renamed 'mount_pdf -A' file from pages/<n>/text.txt to pages/<n>/text/plain_text.txt
+       TODO: add a format version number to Fuse::PDF::ContentFS, expressed as a virtual file
+
+     - Feature: Wrote a quick-and-dirty Mac GUI wrapper
+     - Feature: Added a pages/<n>/text/formatted_text.txt virtual file to 'mount_pdf -A'
+
+     - Internals: Moved most of the bin/mount_pdf code to Fuse::PDF::MountPDF
+     - Internals: Tweaked some 'use' statements to better support PAR
+
+     - Caveat: If you copy a PDF to the filesystem, you may get a corrupt outer document
+       TODO: save file contents in a stream instead of a string
+
+     - Press: http://www.chrisdolan.net/madmongers/par-fuse-pdf.html
+     - Press: http://use.perl.org/~ChrisDolan/journal/35173
+     - Press: http://groups.google.com/group/macfuse-devel/browse_thread/thread/c62a52ed55c72007
+     - Press: http://madmongers.org/mailing-list/mailing-list/my-par/fuse/pdf-talk
+
 0.07 :
      - Released: 2007 Nov 27
      - Summary: Expose embedded images under 'mount_pdf -A'

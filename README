@@ -27,7 +27,13 @@ DESCRIPTION
     leveraging the FUSE (Filesystem in Userspace) library, we map filesystem
     calls to PDF edits.
 
+    More info: http://www.chrisdolan.net/madmongers/par-fuse-pdf.html
+
 BUGS AND CAVEATS
+    PDF-in-PDF: If you copy another PDF into the PDF-based filesystem, it
+    may corrupt the outer document. This should be solved when I switch to
+    saving file contents in PDF streams instead of in PDF strings.
+
     Saving: No data is saved until you unmount the filesystem! Hopefully I
     can fix this in future releases. The saving is not yet atomic. That is,
     if you have a failure, the old PDF may be deleted before the new one is
@@ -36,17 +42,15 @@ BUGS AND CAVEATS
     Resources: The entire PDF is loaded into RAM in `new()'. If your
     filesystem grows too large, this will lead to obvious problems!
 
-    Tests: There are no automated tests yet. That's next, I promise!
-
     Hangs: While FUSE is quite mature, I found it to be fairly easy to hang
-    the filesystem while creating this package. I only needed to actually
-    reboot once, but if that causes you concern you may wish to avoid FUSE
-    in general.
+    the filesystem back around 0.01. I only needed to actually reboot once,
+    but if that causes you concern you may wish to avoid FUSE in general.
+    This has not been a problem since the earliest releases.
 
     Operating systems: I've only tested this software with the Google build
     of MacFUSE 1.1.0 (PowerPC, 10.4, http://code.google.com/p/macfuse/).
     Notably, I have not tried the Linux implementation of FUSE. If you have
-    other experiences to add, email me or (even better) post comments to
+    other experiences to add, email me or post comments to
     http://annocpan.org/.
 
     Fuse.pm: As of this writing, the Fuse module (v0.09_01) fails all tests
@@ -69,15 +73,8 @@ BUGS AND CAVEATS
     of the filesystem, permission enforcement, `chown', `flush', reading
     from unlinked filehandles.
 
-    Performance: Don't expect this to be fast!
-
-    find: I think I have the `nlinks' count wrong. According to the FUSE
-    FAQ, this can confuse the 'find' command:
-    http://fuse.sourceforge.net/wiki/index.php/FAQ#Why_doesnx27.t_find_work_
-    on_my_filesystemx3f.
-
-    Hard links: I have not yet implemented hard links. I'll consider
-    implementing compressed streams at the same time.
+    Hard links: I have not yet implemented hard links. I'll implement
+    compressed streams at the same time.
 
 METHODS
     $pkg->new($pdf_filename)

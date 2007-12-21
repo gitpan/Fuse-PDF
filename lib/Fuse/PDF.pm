@@ -18,7 +18,7 @@ use CAM::PDF;
 use Fuse::PDF::ContentFS;
 use Fuse::PDF::FS;
 
-our $VERSION = '0.07';
+our $VERSION = '0.08';
 
 {
    # Hack fix for Fuse 0.09 which has the wrong constants for Mac.  Get the
@@ -301,7 +301,13 @@ By deciding on a convention for representing a filesystem data and
 leveraging the FUSE (Filesystem in Userspace) library, we map
 filesystem calls to PDF edits.
 
+More info: L<http://www.chrisdolan.net/madmongers/par-fuse-pdf.html>
+
 =head1 BUGS AND CAVEATS
+
+B<PDF-in-PDF>: If you copy another PDF into the PDF-based filesystem, it may
+corrupt the outer document.  This should be solved when I switch to saving
+file contents in PDF streams instead of in PDF strings.
 
 B<Saving:> B<No data is saved until you unmount the filesystem!>
 Hopefully I can fix this in future releases.  The saving is not yet
@@ -311,18 +317,15 @@ deleted before the new one is saved.
 B<Resources:> The B<entire> PDF is loaded into RAM in C<new()>.  If
 your filesystem grows too large, this will lead to obvious problems!
 
-B<Tests:> There are no automated tests yet.  That's next, I promise!
-
 B<Hangs:> While FUSE is quite mature, I found it to be fairly easy to hang the
-filesystem while creating this package.  I only needed to actually
-reboot once, but if that causes you concern you may wish to avoid FUSE
-in general.
+filesystem back around 0.01.  I only needed to actually reboot once, but if
+that causes you concern you may wish to avoid FUSE in general.  This has not
+been a problem since the earliest releases.
 
-B<Operating systems:> I've only tested this software with the Google build of MacFUSE 1.1.0
-(PowerPC, 10.4, L<http://code.google.com/p/macfuse/>).  Notably, I
-have not tried the Linux implementation of FUSE.  If you have other
-experiences to add, email me or (even better) post comments to
-L<http://annocpan.org/>.
+B<Operating systems:> I've only tested this software with the Google build of
+MacFUSE 1.1.0 (PowerPC, 10.4, L<http://code.google.com/p/macfuse/>).  Notably,
+I have not tried the Linux implementation of FUSE.  If you have other
+experiences to add, email me or post comments to L<http://annocpan.org/>.
 
 B<Fuse.pm:> As of this writing, the L<Fuse> module (v0.09_01) fails all tests on Mac.  The
 module actually I<works> great, but the F<Makefile.PL> and the tests are very
@@ -344,14 +347,8 @@ B<Unsupported:> special files (named pipes, etc.), following symlinks
 out of the filesystem, permission enforcement, C<chown>, C<flush>,
 reading from unlinked filehandles.
 
-B<Performance:> Don't expect this to be fast!
-
-B<find:> I think I have the C<nlinks> count wrong.  According to the FUSE FAQ,
-this can confuse the 'find' command:
-L<http://fuse.sourceforge.net/wiki/index.php/FAQ#Why_doesnx27.t_find_work_on_my_filesystemx3f.>
-
-B<Hard links:> I have not yet implemented hard links.  I'll consider
-implementing compressed streams at the same time.
+B<Hard links:> I have not yet implemented hard links.  I'll implement
+compressed streams at the same time.
 
 =head1 METHODS
 

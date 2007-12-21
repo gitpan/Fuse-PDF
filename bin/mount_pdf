@@ -1,95 +1,21 @@
 #!perl
 
 #######################################################################
-#      $URL$
-#     $Date$
-#   $Author$
-# $Revision$
+#      $URL: svn+ssh://equilibrious@equilibrious.net/home/equilibrious/svnrepos/chrisdolan/Fuse-PDF/bin/mount_pdf $
+#     $Date: 2007-11-29 00:11:04 -0600 (Thu, 29 Nov 2007) $
+#   $Author: equilibrious $
+# $Revision: 725 $
 ########################################################################
-
-## no critic(ErrorHandling::RequireCarping)
-
-package main;
 
 use warnings;
 use strict;
-use Getopt::Long;
-use Pod::Usage;
-use Fuse::PDF;
+use Fuse::PDF::MountPDF;
 
-our $VERSION = '0.07';
+our $VERSION = '0.08';
 
-my %opts = (
-   verbose    => 0,
-   debug      => 0,
-   askforpass => 0,
-   info       => 0,
-   delete     => 0,
-   backup     => 0,
-   rev        => 0,
-   keep       => 0,
-   fs_name    => undef,
-   fuseopts   => undef,
-   help       => 0,
-   version    => 0,
-);
+my $exitval = Fuse::PDF::MountPDF->run(@ARGV);
+exit $exitval;
 
-Getopt::Long::Configure('bundling');
-GetOptions(
-   'v|verbose'    => \$opts{verbose},
-   'd|debug'      => \$opts{debug},
-   'p|password'   => \$opts{askforpass},
-   'i|info'       => \$opts{info},
-   'deletefs'     => \$opts{delete},
-   'b|backup'     => \$opts{backup},
-   'r|revision=i' => \$opts{rev},
-   'k|keep'       => \$opts{keep},
-   'f|fs=s'       => \$opts{fs_name},
-   'fuseopts=s'   => \$opts{fuseopts},
-   'A|all'        => sub {$opts{fs_name} = 'pdf'},
-   'h|help'       => \$opts{help},
-   'V|version'    => \$opts{version},
-) or pod2usage(1);
-
-if ($opts{help}) {
-   pod2usage(-exitstatus => 0, -verbose => 2);
-}
-if ($opts{version}) {
-   print "Fuse::PDF v$Fuse::PDF::VERSION\n";
-   exit 0;
-}
-
-if (@ARGV < 1) {
-   pod2usage(1);
-}
-if (@ARGV < 2 && !$opts{info} && !$opts{delete}) {
-   pod2usage(1);
-}
-
-my $filename = shift;
-my $mountdir = shift;
-
-my $pdf_opts = [q{}, q{}, { prompt_for_password => $opts{askforpass} }];
-my $fuse = Fuse::PDF->new($filename, {
-   pdf_constructor => $pdf_opts,
-   fs_name         => $opts{fs_name},
-   revision        => $opts{rev},
-   backup          => $opts{backup},
-   compact         => !$opts{keep},
-}) or die 'Failed to open the PDF';
-
-if ($opts{info}) {
-   print $fuse->fs->to_string;
-} elsif ($opts{delete}) {
-   $fuse->fs->deletefs($filename);
-} else {
-   $fuse->mount($mountdir, {
-       $opts{debug}    ? ( debug => 1 )                   : (),
-       $opts{fuseopts} ? ( mountopts => $opts{fuseopts} ) : (),
-    });
-}
-
-exit 0;
 
 __END__
 
