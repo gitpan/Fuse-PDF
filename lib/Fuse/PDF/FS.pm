@@ -1,8 +1,8 @@
 #######################################################################
 #      $URL: svn+ssh://equilibrious@equilibrious.net/home/equilibrious/svnrepos/chrisdolan/Fuse-PDF/lib/Fuse/PDF/FS.pm $
-#     $Date: 2007-11-27 23:43:19 -0600 (Tue, 27 Nov 2007) $
+#     $Date: 2008-06-06 22:47:54 -0500 (Fri, 06 Jun 2008) $
 #   $Author: equilibrious $
-# $Revision: 724 $
+# $Revision: 767 $
 ########################################################################
 
 package Fuse::PDF::FS;
@@ -20,7 +20,7 @@ use CAM::PDF;
 use CAM::PDF::Node;
 use Fuse::PDF::ErrnoHacks;
 
-our $VERSION = '0.08';
+our $VERSION = '0.09';
 
 # integer, increases when we break file format backward compatibility
 Readonly::Scalar my $COMPATIBILITY_VERSION => 2;
@@ -705,7 +705,7 @@ Fuse::PDF::FS - In-PDF implementation of a filesystem.
 
 =head1 LICENSE
 
-Copyright 2007 Chris Dolan, I<cdolan@cpan.org>
+Copyright 2007-2008 Chris Dolan, I<cdolan@cpan.org>
 
 This library is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.
@@ -748,7 +748,7 @@ possible to have multiple independent filesystems embedded in the same
 PDF at once by choosing another name.  However, mounting more than one
 at a time will almost certainly cause data loss.
 
-=item autosave_filename => undef | $filename
+=item autosave_filename => C<undef> | $filename
 
 If this option is set to a filename, the PDF will be automatically
 saved when this instance is garbage collected.  Otherwise, the client
@@ -898,7 +898,9 @@ they can easily be converted to a FUSE implementation.
 
 L<POSIX> is missing a constant this error number (at least, not on Mac
 10.4). If we detect that it is missing at runtime, we attempt to replace it
-by: 1) reading errno.h, 2) falling back to EIO.
+by: 1) reading F<errno.h>, 2) falling back to EIO.
+
+See L<Fuse::PDF::ErrnoHacks>.
 
 =back
 

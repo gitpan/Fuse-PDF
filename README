@@ -10,7 +10,7 @@ SYNOPSIS
     See also the mount_pdf front-end.
 
 LICENSE
-    Copyright 2007 Chris Dolan, *cdolan@cpan.org*
+    Copyright 2007-2008 Chris Dolan, *cdolan@cpan.org*
 
     This library is free software; you can redistribute it and/or modify it
     under the same terms as Perl itself.

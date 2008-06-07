@@ -1,5 +1,11 @@
 # History of Perl distribution Fuse-PDF.  This change log is valid YAML.
 
+0.09 :
+     - Released: 2008 Jun 06
+     - Summary: Documentation fixes, no new functionality
+
+     - Fix: The docs in Fuse::PDF::ContentFS were a verbatim copy from Fuse::PDF::FS
+
 0.08 :
      - Released: 2007 Dec 20
      - Summary: Mac GUI; text formatting in -A mode

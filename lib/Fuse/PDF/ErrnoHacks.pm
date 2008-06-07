@@ -1,8 +1,8 @@
 #######################################################################
 #      $URL: svn+ssh://equilibrious@equilibrious.net/home/equilibrious/svnrepos/chrisdolan/Fuse-PDF/lib/Fuse/PDF/ErrnoHacks.pm $
-#     $Date: 2007-11-27 23:43:19 -0600 (Tue, 27 Nov 2007) $
+#     $Date: 2008-06-06 22:47:54 -0500 (Fri, 06 Jun 2008) $
 #   $Author: equilibrious $
-# $Revision: 724 $
+# $Revision: 767 $
 ########################################################################
 package #
   Fuse::PDF::ErrnoHacks;
@@ -13,7 +13,7 @@ use POSIX qw();
 use Carp qw(carp);
 use English qw(-no_match_vars);
 
-our $VERSION = '0.08';
+our $VERSION = '0.09';
 
 BEGIN {
    # ENOATTR isn't commonly defined in POSIX.pm.  Try to find it, or use a fallback value.
@@ -53,7 +53,7 @@ __END__
 
 =head1 NAME
 
-Fuse::PDF::ErrnoHacks - Workaround for missing POSIX.pm errno values
+Fuse::PDF::ErrnoHacks - Workaround for missing POSIX.pm error number values
 
 =head1 SYNOPSIS
 
@@ -81,7 +81,7 @@ C<EIO> instead.
 
 =head1 LICENSE
 
-Copyright 2007 Chris Dolan, I<cdolan@cpan.org>
+Copyright 2007-2008 Chris Dolan, I<cdolan@cpan.org>
 
 This library is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.

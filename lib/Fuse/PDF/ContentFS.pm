@@ -1,8 +1,8 @@
 #######################################################################
 #      $URL: svn+ssh://equilibrious@equilibrious.net/home/equilibrious/svnrepos/chrisdolan/Fuse-PDF/lib/Fuse/PDF/ContentFS.pm $
-#     $Date: 2007-11-29 00:11:04 -0600 (Thu, 29 Nov 2007) $
+#     $Date: 2008-06-06 22:47:54 -0500 (Fri, 06 Jun 2008) $
 #   $Author: equilibrious $
-# $Revision: 725 $
+# $Revision: 767 $
 ########################################################################
 
 package Fuse::PDF::ContentFS;
@@ -24,7 +24,7 @@ use Fuse::PDF::ErrnoHacks;
 use Fuse::PDF::FS;
 use Fuse::PDF::ImageTemplate;
 
-our $VERSION = '0.08';
+our $VERSION = '0.09';
 
 Readonly::Scalar my $PATHLEN => 255;
 Readonly::Scalar my $BLOCKSIZE => 4096;
@@ -715,29 +715,80 @@ __END__
 
 =head1 NAME
 
-Fuse::PDF::FS - In-PDF implementation of a filesystem.
+Fuse::PDF::ContentFS - Represent actual PDF document properties as files
 
 =head1 SYNOPSIS
 
-    use Fuse::PDF::FS;
-    my $fs = Fuse::PDF::FS->new({pdf => CAM::PDF->new('my_doc.pdf')});
-    $fs->fs_mkdir('/foo');
-    $fs->fs_write('/foo/bar', 'Hello world!', 0);
-    $fs->save();
+    use Fuse::PDF::ContentFS;
+    my $fs = Fuse::PDF::ContentFS->new({pdf => CAM::PDF->new('my_doc.pdf')});
+    $fs->fs_read('/');
+
+or
+
+    % mount_pdf --all my_doc.pdf /Volumes/my_doc_pdf
+    % cd /Volumes/my_doc_pdf
+    % ls
+    filesystems  metadata  pages  revisions
+    % ls metadata/
+    CreationDate  Creator  ID  ModDate  Producer
+    % cat metadata/Producer
+    Adobe PDF library 5.00
+    % ls pages
+    1
+    % ls pages/1
+    fonts  images  layout.txt  text
+    % ls pages/1/text
+    formatted_text.txt  plain_text.txt      
+    % cat pages/1/text/plain_text.txt 
+    F u s e : : P D F  -  E m b e d  a  f i l e s y s t e m  i n  a  P D F  d o c u 
+    m e n t
+    C h r i s  D o l a n  < c d o l a n @ c p a n . o r g >
+    T o  g e t  s o f t w a r e  t h a t  c a n  i n t e r a c t  w i t h  t h i s  
+    f i l e s y s t e m ,  s e e
+    h t t p : / / s e a r c h . c p a n . o r g / d i s t / F u s e - P D F /
+    % cat pages/1/fonts/TT0/BaseFont 
+    HISDQN+Helvetica
+    % ls pages/1/images/
+    1.pdf  2.pdf  3.pdf  4.pdf
+    % open pages/1/images/1.pdf
+    % cd /
+    % umount /Volumes/my_doc_pdf
 
 =head1 LICENSE
 
-Copyright 2007 Chris Dolan, I<cdolan@cpan.org>
+Copyright 2007-2008 Chris Dolan, I<cdolan@cpan.org>
 
 This library is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.
 
 =head1 DESCRIPTION
 
-This is an implementation of a filesystem inside of a PDF file.
-Contrary to the package name, this module is actually independent of
-FUSE, but is meant to map cleanly onto the FUSE API.  See L<Fuse::PDF>
-and the F<mount_pdf> front-end.
+This is a read-only filesystem that represents the metadata of a PDF document
+as a filesystem.  The metadata that are available are the ones that I've
+explicitly coded for.  Much more is possible.
+
+=head1 FILESYSTEM STRUCTURE
+
+  /pages/<num>                      - one folder per page of the document; count from 1
+  /pages/<num>/fonts/<ID>           - one folder per referenced font, e.g. 'TT0'
+  /pages/<num>/fonts/<ID>/Type      - always 'Font'
+  /pages/<num>/fonts/<ID>/Subtype   - e.g. 'TrueType'
+  /pages/<num>/fonts/<ID>/BaseFont  - name of the font, e.g. 'Helvetica'
+  /pages/<num>/fonts/<ID>/FirstChar - ordinal of the first available glyph
+  /pages/<num>/fonts/<ID>/LastChar  - ordinal of the last available glyph
+  /pages/<num>/layout.txt           - raw PDF markup for a page
+  /pages/<num>/text/plain_text.txt  - strings extracted from the page (rough!)
+  /pages/<num>/text/formatted_text.txt - very rough text rendering of the page
+  /pages/<num>/images/<num>.pdf     - images used in the page, wrapped in a minimal PDF
+  /metadata/                        - one file for every metadata key/value in the root dict
+  /metadata/ID                      - hexadecimal ID, hopefully unique
+  /metadata/Author                  - usually the author's username; depends on authoring tool
+  /metadata/Creator                 - name of generating application
+  /metadata/Producer                - name of generating application
+  /metadata/CreationDate            - e.g. D:20080104091746-06'00'
+  /metadata/ModDate                 - date last modified (usually the same as the CreationDate)
+  /filesystems/<name>/              - any embedded filesystems created by Fuse::PDF
+  /revisions/<num>                  - look at older versions of annotated PDFs
 
 =head1 METHODS
 
@@ -745,105 +796,33 @@ and the F<mount_pdf> front-end.
 
 =item $pkg->new($hash_of_options)
 
-Create a new filesystem instance.  This method creates a new root
-filesystem node in the PDF if one does not already exist.  The only
+Create a new filesystem instance.  The only
 required option is the C<pdf> key, like so:
 
-   my $fs = Fuse::PDF::FS->new({pdf => $pdf});
+   my $fs = Fuse::PDF::ContentFS->new({pdf => CAM::PDF->new('file.pdf')});
 
-Supported options:
-
-=over
-
-=item pdf => $pdf
-
-Specify a L<CAM::PDF> instance.  Fuse::PDF::FS is highly dependent on
-the architecture of CAM::PDF, so swapping in another PDF
-implementation is not likely to be feasible with substantial rewriting
-or bridging.
-
-=item fs_name => $name
-
-This specifies the key where the filesystem data is stored inside the
-PDF data structure.  Defaults to 'FusePDF_FS', Note that it is
-possible to have multiple independent filesystems embedded in the same
-PDF at once by choosing another name.  However, mounting more than one
-at a time will almost certainly cause data loss.
-
-=item autosave_filename => undef | $filename
-
-If this option is set to a filename, the PDF will be automatically
-saved when this instance is garbage collected.  Otherwise, the client
-must explicitly call C<save()>.  Defaults to C<undef>.
-
-=item compact => $boolean
-
-Specifies whether the PDF should be compacted upon save.  Defaults to
-true.  If this option is turned off, then previous revisions of the
-filesystem can be retrieved via standard PDF revert tools, like
-F<revertpdf.pl> from the L<CAM::PDF> distribution.  But that can lead
-to rather large PDFs.
-
-=item backup => $boolean
-
-Specifies whether to save the previous version of the PDF as
-F<$filename.bak> before saving a new version.  Defaults to false.
-
-=back
-
-=item $self->autosave_filename()
-
-=item $self->autosave_filename($filename)
-
-Accessor/mutator for the C<autosave_filename> property described above.
-
-=item $self->compact()
-
-=item $self->compact($boolean)
-
-Accessor/mutator for the C<compact> property described above.
-
-=item $self->backup()
-
-=item $self->backup($boolean)
-
-Accessor/mutator for the C<backup> property described above.
-
-=item $self->save($filename);
-
-Explicitly trigger a save to the specified filename.  If
-C<autosave_filename> is defined, then this method is called via
-C<DESTROY()>.
-
-=item $self->deletefs($filename)
-
-Delete the filesystem from the in-memory PDF and save the result to
-the specified filename.  If there is more than one filesystem in the
-PDF, only the one indicated by the C<fs_name> above is affected.  If
-no filesystem exists with that C<fs_name>, the save succeeds anyway.
+All other options are currently unused, although they are passed to
+L<Fuse::PDF::FS> instances created for the F</filesystem> folder.
 
 =item $self->all_revisions()
 
-Return a list of one instance for each revision of the PDF.  The first
-item on the list is this instance (the newest) and the last item on
-the list is the first revision of the PDF (the oldest).
+Return a list of one instance for each revision of the PDF.  The first item on
+the list is this instance (the newest) and the last item on the list is the
+first revision of the PDF (the oldest).  Unedited PDFs (the most common) will
+return just a one-element list.
 
 =item $self->previous_revision()
 
 If there is an older version of the PDF, extract that and return a new
-C<Fuse::PDF::FS> instance which applies to that revision.  Multiple
+C<Fuse::PDF::ContentFS> instance which applies to that revision.  Multiple
 versions is feature supported by the PDF specification, so this action
 is consistent with other PDF revision editing tools.
 
-If this is a new filesystem or if the C<compact()> option was used,
-then there will be no previous revisions and this will return
-C<undef>.
+If there are no previous revisions, this will return C<undef>.
 
 =item $self->statistics()
 
 Return a hashref with some global information about the filesystem.
-This is currently meant for humans and the exact list of statistics is
-not yet locked down.  See the code for more details.
 
 =item $self->to_string()
 
@@ -912,15 +891,25 @@ they can easily be converted to a FUSE implementation.
 
 =back
 
-=head1 HACKS
+=head1 PASS-THROUGH METHODS
+
+These methods exist only to pass parameters through to L<Fuse::PDF::FS> via
+the F</filesystem/*> sub-filesystems.  See the methods of the same name in
+that module.
 
 =over
 
-=item ENOATTR()
+=item $self->autosave_filename()
 
-L<POSIX> is missing a constant this error number (at least, not on Mac
-10.4). If we detect that it is missing at runtime, we attempt to replace it
-by: 1) reading errno.h, 2) falling back to EIO.
+=item $self->autosave_filename($filename)
+
+=item $self->compact()
+
+=item $self->compact($boolean)
+
+=item $self->backup()
+
+=item $self->backup($boolean)
 
 =back
 

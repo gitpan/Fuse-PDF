@@ -1,8 +1,8 @@
 #######################################################################
 #      $URL: svn+ssh://equilibrious@equilibrious.net/home/equilibrious/svnrepos/chrisdolan/Fuse-PDF/lib/Fuse/PDF/MountPDF.pm $
-#     $Date: 2007-11-29 00:11:04 -0600 (Thu, 29 Nov 2007) $
+#     $Date: 2008-06-06 22:47:54 -0500 (Fri, 06 Jun 2008) $
 #   $Author: equilibrious $
-# $Revision: 725 $
+# $Revision: 767 $
 ########################################################################
 
 ## no critic(ErrorHandling::RequireCarping)
@@ -15,7 +15,7 @@ use Getopt::Long qw(GetOptionsFromArray);
 use Pod::Usage qw(pod2usage);
 use Fuse::PDF;
 
-our $VERSION = '0.08';
+our $VERSION = '0.09';
 
 sub run {
    my ($pkg, @args) = @_;
@@ -109,7 +109,7 @@ Fuse::PDF::MountPDF - Engine behind the mount_pdf program
 
 =head1 LICENSE
 
-Copyright 2007 Chris Dolan, I<cdolan@cpan.org>
+Copyright 2007-2008 Chris Dolan, I<cdolan@cpan.org>
 
 This library is free software; you can redistribute it and/or modify it
 under the same terms as Perl itself.
